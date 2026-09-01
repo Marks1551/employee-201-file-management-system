@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Poppins', 'Inter', sans-serif;
+
+  --color-navy: #7A1F2B;
+  --color-navy-dark: #5C1620;
+  --color-navy-100: #F3E3E4;
+  --color-gold: #D9A441;
+  --color-gold-dark: #B9862F;
+  --color-cream: #F7F4EE;
+  --color-ink: #202A34;
+  --color-ink-muted: #5B6572;
+  --color-ink-faint: #8A93A0;
+  --color-border: #E3DFD3;
+  --color-border-strong: #CFC9B8;
+
+  --color-hr-bg: #E3F1E6;
+  --color-hr-border: #6B9080;
+  --color-hr-text: #2C5942;
+  --color-faculty-bg: #EFE4F6;
+  --color-faculty-border: #8E5FA3;
+  --color-faculty-text: #5B3A73;
+  --color-admin-bg: #FBEBD0;
+  --color-admin-border: #D9A441;
+  --color-admin-text: #8A5A18;
+
+  --color-ok-bg: #E1F3E6;
+  --color-ok-text: #276B42;
+  --color-ok-border: #A9D8B7;
+  --color-warn-bg: #FDF1D6;
+  --color-warn-text: #92680B;
+  --color-warn-border: #EBCE83;
+  --color-danger-bg: #FBE4E4;
+  --color-danger-text: #A23B3B;
+  --color-danger-border: #E9B4B4;
+
+  --shadow-card: 0 1px 2px rgba(122,31,43,0.06), 0 4px 16px rgba(122,31,43,0.06);
+  --shadow-pop: 0 8px 28px rgba(92,22,32,0.16);
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--color-ink);
+    background: var(--color-cream);
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Poppins', 'Inter', sans-serif;
+    font-weight: 600;
+    color: var(--color-navy-dark);
+    margin: 0;
+    line-height: 1.25;
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible,
+  select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--color-gold);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 999px; }
+}
