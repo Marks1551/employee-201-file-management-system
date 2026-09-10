@@ -1,0 +1,7 @@
+# Railway builds this app with Nixpacks by default, and the standard
+# Node.js image does NOT include MySQL's client tools. The in-app "Back Up
+# Now" feature (app/api/backup/route.ts) shells out to `mysqldump`, so we
+# install it explicitly here. Without this, backups on Railway silently fall
+# back to a partial JSON export instead of a real SQL dump.
+[phases.setup]
+aptPkgs = ["default-mysql-client"]
