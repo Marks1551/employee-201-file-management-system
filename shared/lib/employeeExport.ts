@@ -5,15 +5,16 @@
 // renders the official CS Form No. 212 Personal Data Sheet layout; this
 // export is a plain summary of the employee record itself.
 
-import type { Employee } from '@/shared/types';
+import type { Employee } from "@/shared/types";
+import { printHtmlDocument } from "./printDocument";
 
 function esc(value: string | number | null | undefined): string {
-  const str = value === null || value === undefined || value === '' ? '' : String(value);
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const str = value === null || value === undefined || value === "" ? "" : String(value);
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function dash(value: string | number | null | undefined): string {
-  return value === null || value === undefined || value === '' ? '—' : esc(value);
+  return value === null || value === undefined || value === "" ? "—" : esc(value);
 }
 
 function field(label: string, value: string | number | null | undefined): string {
@@ -22,18 +23,19 @@ function field(label: string, value: string | number | null | undefined): string
 
 function table(headers: string[], rows: string[][], emptyMessage: string): string {
   if (rows.length === 0) {
-    return `<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody><tr><td class="empty" colspan="${headers.length}">${esc(emptyMessage)}</td></tr></tbody></table>`;
+    return `<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody><tr><td class="empty" colspan="${headers.length}">${esc(emptyMessage)}</td></tr></tbody></table>`;
   }
-  const body = rows.map((r) => `<tr>${r.map((c) => `<td>${c || '&nbsp;'}</td>`).join('')}</tr>`).join('');
-  return `<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+  const body = rows.map((r) => `<tr>${r.map((c) => `<td>${c || "&nbsp;"}</td>`).join("")}</tr>`).join("");
+  return `<table><thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function buildHtml(employee: Employee): string {
-  const generatedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const generatedOn = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const p = employee.pds;
-  const statusLabel = (employee.status || 'active') === 'active'
-    ? 'Active'
-    : `Inactive — ${employee.deactivationReason || 'n/a'}${employee.deactivatedAt ? ` (${employee.deactivatedAt})` : ''}`;
+  const statusLabel =
+    (employee.status || "active") === "active"
+      ? "Active"
+      : `Inactive — ${employee.deactivationReason || "n/a"}${employee.deactivatedAt ? ` (${employee.deactivatedAt})` : ""}`;
 
   return `<!DOCTYPE html>
 <html>
@@ -70,93 +72,118 @@ function buildHtml(employee: Employee): string {
   <div class="header">
     <div>
       <p class="title">${esc(employee.displayName)}</p>
-      <p class="subtitle">${esc(employee.position) || 'No position on file'} · ${esc(employee.department) || 'No department on file'} · Employee #${esc(employee.employeeNumber)}</p>
+      <p class="subtitle">${esc(employee.position) || "No position on file"} · ${esc(employee.department) || "No department on file"} · Employee #${esc(employee.employeeNumber)}</p>
     </div>
     <span class="status">${esc(statusLabel)}</span>
   </div>
 
   <div class="section-h">Personal Information</div>
   <div class="grid">
-    ${field('Full Name', employee.fullName)}
-    ${field('Date of Birth', employee.dob)}
-    ${field('Sex at Birth', p.sexAtBirth)}
-    ${field('Civil Status', employee.civilStatus)}
-    ${field('Nationality', employee.nationality)}
-    ${field('Place of Birth', p.placeOfBirth)}
-    ${field('Height (m)', p.heightM)}
-    ${field('Weight (kg)', p.weightKg)}
-    ${field('Blood Type', p.bloodType)}
-    ${field('Contact Number', employee.contact)}
-    ${field('Mobile No.', p.mobileNo)}
-    ${field('Telephone No.', p.telephoneNo)}
-    ${field('Email Address', employee.email)}
-    ${field('Address', employee.address)}
+    ${field("Full Name", employee.fullName)}
+    ${field("Date of Birth", employee.dob)}
+    ${field("Sex at Birth", p.sexAtBirth)}
+    ${field("Civil Status", employee.civilStatus)}
+    ${field("Nationality", employee.nationality)}
+    ${field("Place of Birth", p.placeOfBirth)}
+    ${field("Height (m)", p.heightM)}
+    ${field("Weight (kg)", p.weightKg)}
+    ${field("Blood Type", p.bloodType)}
+    ${field("Contact Number", employee.contact)}
+    ${field("Mobile No.", p.mobileNo)}
+    ${field("Telephone No.", p.telephoneNo)}
+    ${field("Email Address", employee.email)}
+    ${field("Address", employee.address)}
   </div>
 
   <div class="section-h">Employment Information</div>
   <div class="grid">
-    ${field('Employee Number', employee.employeeNumber)}
-    ${field('Department', employee.department)}
-    ${field('Position', employee.position)}
-    ${field('Employment Type', employee.employmentType)}
-    ${field('Employment Status', employee.employmentStatus)}
-    ${field('Date Hired', employee.dateHired)}
-    ${field('Contract Start', employee.contractStart)}
-    ${field('Contract End', employee.contractEnd)}
-    ${field('Immediate Supervisor', employee.supervisor)}
-    ${field('Record Status', statusLabel)}
+    ${field("Employee Number", employee.employeeNumber)}
+    ${field("Department", employee.department)}
+    ${field("Position", employee.position)}
+    ${field("Employment Type", employee.employmentType)}
+    ${field("Employment Status", employee.employmentStatus)}
+    ${field("Date Hired", employee.dateHired)}
+    ${field("Contract Start", employee.contractStart)}
+    ${field("Contract End", employee.contractEnd)}
+    ${field("Immediate Supervisor", employee.supervisor)}
+    ${field("Record Status", statusLabel)}
   </div>
 
   <div class="section-h">Government Membership IDs</div>
   <div class="grid">
-    ${field('GSIS / UMID ID No.', p.gsisUmidNo)}
-    ${field('Pag-IBIG ID No.', p.pagibigNo)}
-    ${field('PhilHealth No.', p.philhealthNo)}
-    ${field('PhilSys Number (PSN)', p.philsysNumber)}
-    ${field('TIN No.', p.tinNo)}
-    ${field('Agency Employee No.', p.agencyEmployeeNo)}
+    ${field("GSIS / UMID ID No.", p.gsisUmidNo)}
+    ${field("Pag-IBIG ID No.", p.pagibigNo)}
+    ${field("PhilHealth No.", p.philhealthNo)}
+    ${field("PhilSys Number (PSN)", p.philsysNumber)}
+    ${field("TIN No.", p.tinNo)}
+    ${field("Agency Employee No.", p.agencyEmployeeNo)}
   </div>
 
   <div class="section-h">Education</div>
   ${table(
-    ['Level', 'School / Institution', 'Degree / Course', 'Year Graduated', 'Honors'],
-    employee.education.map((e) => [esc(e.level), esc(e.schoolName), esc(e.degree), esc(e.yearGraduated), esc(e.honors)]),
-    'No education records on file.'
+    ["Level", "School / Institution", "Degree / Course", "Year Graduated", "Honors"],
+    employee.education.map((e) => [
+      esc(e.level),
+      esc(e.schoolName),
+      esc(e.degree),
+      esc(e.yearGraduated),
+      esc(e.honors),
+    ]),
+    "No education records on file.",
   )}
 
   <div class="section-h">Work Experience</div>
   ${table(
-    ['Company / Employer', 'Position', 'From', 'To', 'Status of Appointment'],
-    employee.workExperience.map((w) => [esc(w.company), esc(w.position), esc(w.fromDate), esc(w.toDate) || 'Present', esc(w.statusOfAppointment)]),
-    'No work experience records on file.'
+    ["Company / Employer", "Position", "From", "To", "Status of Appointment"],
+    employee.workExperience.map((w) => [
+      esc(w.company),
+      esc(w.position),
+      esc(w.fromDate),
+      esc(w.toDate) || "Present",
+      esc(w.statusOfAppointment),
+    ]),
+    "No work experience records on file.",
   )}
 
   <div class="section-h">Training &amp; Development</div>
   ${table(
-    ['Course / Training Title', 'Provider', 'From', 'To / Completed', 'Hours', 'Certificate'],
-    employee.training.map((t) => [esc(t.course), esc(t.provider), esc(t.fromDate), esc(t.completed), esc(t.hours), t.certStatus === 'on-file' ? 'On file' : 'Expiring soon']),
-    'No training records on file.'
+    ["Course / Training Title", "Provider", "From", "To / Completed", "Hours", "Certificate"],
+    employee.training.map((t) => [
+      esc(t.course),
+      esc(t.provider),
+      esc(t.fromDate),
+      esc(t.completed),
+      esc(t.hours),
+      t.certStatus === "on-file" ? "On file" : "Expiring soon",
+    ]),
+    "No training records on file.",
   )}
 
   <div class="section-h">Performance Reviews</div>
   ${table(
-    ['Review Period', 'Rating', 'Reviewed By', 'Remarks'],
+    ["Review Period", "Rating", "Reviewed By", "Remarks"],
     employee.performance.map((r) => [esc(r.period), esc(r.rating), esc(r.reviewer), esc(r.remarks)]),
-    'No performance reviews on file.'
+    "No performance reviews on file.",
   )}
 
   <div class="section-h">Attendance</div>
   ${table(
-    ['Period', 'Days Present', 'Days Absent', 'Days Late', 'Remarks'],
-    employee.attendance.map((a) => [esc(a.period), dash(a.daysPresent), dash(a.daysAbsent), dash(a.daysLate), esc(a.remarks)]),
-    'No attendance records on file.'
+    ["Period", "Days Present", "Days Absent", "Days Late", "Remarks"],
+    employee.attendance.map((a) => [
+      esc(a.period),
+      dash(a.daysPresent),
+      dash(a.daysAbsent),
+      dash(a.daysLate),
+      esc(a.remarks),
+    ]),
+    "No attendance records on file.",
   )}
 
   <div class="section-h">Documents on File</div>
   ${table(
-    ['Document', 'Status', 'Uploaded'],
-    employee.documents.map((d) => [esc(d.name), d.status === 'uploaded' ? 'Uploaded' : 'Missing', esc(d.uploaded)]),
-    'No documents on file.'
+    ["Document", "Status", "Uploaded"],
+    employee.documents.map((d) => [esc(d.name), d.status === "uploaded" ? "Uploaded" : "Missing", esc(d.uploaded)]),
+    "No documents on file.",
   )}
 
   <p class="page-footer">Employee 201 File Summary — Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)} &nbsp;·&nbsp; Generated ${esc(generatedOn)}</p>
@@ -167,20 +194,14 @@ function buildHtml(employee: Employee): string {
 }
 
 /**
- * Opens a new tab with a print-ready summary of everything on file for one
- * employee (personal & employment info, government IDs, education, work
- * experience, training, performance, attendance, documents) and triggers
- * the browser print dialog, letting the user save it as a PDF.
+ * Builds a print-ready summary of everything on file for one employee
+ * (personal & employment info, government IDs, education, work experience,
+ * training, performance, attendance, documents) and triggers the browser
+ * print dialog, letting the user save it as a PDF. Prints via a hidden
+ * iframe rather than a new tab so it can't be silently blocked by the
+ * browser's popup blocker.
  */
 export function exportEmployeeProfile(employee: Employee): void {
   const html = buildHtml(employee);
-  const win = window.open('', '_blank');
-  if (!win) return;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => {
-    win.print();
-  }, 300);
+  printHtmlDocument(html);
 }

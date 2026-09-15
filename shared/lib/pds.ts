@@ -4,24 +4,25 @@
 // print-ready HTML document — the browser's own "Save as PDF" / print
 // dialog handles export, so no extra PDF dependency is needed.
 
-import { emptyPdsDetails } from '@/shared/types';
-import type { Employee, PdsDetails } from '@/shared/types';
+import { emptyPdsDetails } from "@/shared/types";
+import type { Employee, PdsDetails } from "@/shared/types";
+import { printHtmlDocument } from "./printDocument";
 
 function esc(value: string | number | null | undefined): string {
-  const str = value === null || value === undefined || value === '' ? '' : String(value);
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const str = value === null || value === undefined || value === "" ? "" : String(value);
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** Best-effort split of "First Middle Last" into PDS-style name fields. */
 function splitName(fullName: string): { first: string; middle: string; last: string } {
   const parts = fullName.trim().split(/\s+/);
-  if (parts.length <= 1) return { first: fullName, middle: '', last: '' };
-  if (parts.length === 2) return { first: parts[0], middle: '', last: parts[1] };
-  return { first: parts[0], middle: parts.slice(1, -1).join(' '), last: parts[parts.length - 1] };
+  if (parts.length <= 1) return { first: fullName, middle: "", last: "" };
+  if (parts.length === 2) return { first: parts[0], middle: "", last: parts[1] };
+  return { first: parts[0], middle: parts.slice(1, -1).join(" "), last: parts[parts.length - 1] };
 }
 
 function box(value: string | number | null | undefined): string {
-  return `<div class="box">${esc(value) || '&nbsp;'}</div>`;
+  return `<div class="box">${esc(value) || "&nbsp;"}</div>`;
 }
 
 function field(label: string, value: string | number | null | undefined, flex = 1): string {
@@ -29,15 +30,36 @@ function field(label: string, value: string | number | null | undefined, flex = 
 }
 
 function checkbox(label: string, checked: boolean | null | undefined): string {
-  return `<span class="chk">${checked ? '☑' : '☐'} ${esc(label)}</span>`;
+  return `<span class="chk">${checked ? "☑" : "☐"} ${esc(label)}</span>`;
 }
 
-function addrLine(a: { houseBlockLot: string | null; street: string | null; subdivision: string | null; barangay: string | null; cityMunicipality: string | null; province: string | null; zipCode: string | null }): string {
-  const parts = [a.houseBlockLot, a.street, a.subdivision, a.barangay, a.cityMunicipality, a.province, a.zipCode].filter((p) => p && p.trim());
-  return parts.length ? esc(parts.join(', ')) : '';
+function addrLine(a: {
+  houseBlockLot: string | null;
+  street: string | null;
+  subdivision: string | null;
+  barangay: string | null;
+  cityMunicipality: string | null;
+  province: string | null;
+  zipCode: string | null;
+}): string {
+  const parts = [
+    a.houseBlockLot,
+    a.street,
+    a.subdivision,
+    a.barangay,
+    a.cityMunicipality,
+    a.province,
+    a.zipCode,
+  ].filter((p) => p && p.trim());
+  return parts.length ? esc(parts.join(", ")) : "";
 }
 
-function yesNoLine(label: string, value: boolean | null, details: string | null | undefined, extra?: { label: string; value: string | null | undefined }[]): string {
+function yesNoLine(
+  label: string,
+  value: boolean | null,
+  details: string | null | undefined,
+  extra?: { label: string; value: string | null | undefined }[],
+): string {
   const detailBits: string[] = [];
   if (value && details) detailBits.push(esc(details));
   if (value && extra) {
@@ -45,29 +67,31 @@ function yesNoLine(label: string, value: boolean | null, details: string | null 
   }
   return `<div class="decl-row">
     <p class="decl-q">${esc(label)}</p>
-    <div class="decl-ans">${checkbox('Yes', value === true)} &nbsp; ${checkbox('No', value === false || value === null)}</div>
-    ${value && detailBits.length ? `<p class="decl-details">${detailBits.join(' — ')}</p>` : ''}
+    <div class="decl-ans">${checkbox("Yes", value === true)} &nbsp; ${checkbox("No", value === false || value === null)}</div>
+    ${value && detailBits.length ? `<p class="decl-details">${detailBits.join(" — ")}</p>` : ""}
   </div>`;
 }
 
 function buildEducationRows(employee: Employee): string {
-  const order = ['Elementary', 'Secondary', 'Vocational / Trade', 'College', 'Graduate Studies'];
-  const byLevel = new Map(employee.education.map((e) => [e.level || '', e]));
+  const order = ["Elementary", "Secondary", "Vocational / Trade", "College", "Graduate Studies"];
+  const byLevel = new Map(employee.education.map((e) => [e.level || "", e]));
   const rows = order.map((level) => {
     const e = byLevel.get(level);
     return `<tr>
       <td class="lvl">${esc(level.toUpperCase())}</td>
-      <td>${e ? esc(e.schoolName) : ''}</td>
-      <td>${e ? esc(e.degree) : ''}</td>
-      <td>${e ? esc(e.yearGraduated) : ''}</td>
-      <td>${e ? esc(e.honors) : ''}</td>
+      <td>${e ? esc(e.schoolName) : ""}</td>
+      <td>${e ? esc(e.degree) : ""}</td>
+      <td>${e ? esc(e.yearGraduated) : ""}</td>
+      <td>${e ? esc(e.honors) : ""}</td>
     </tr>`;
   });
-  const extras = employee.education.filter((e) => !order.includes(e.level || ''));
+  const extras = employee.education.filter((e) => !order.includes(e.level || ""));
   for (const e of extras) {
-    rows.push(`<tr><td class="lvl">${esc((e.level || '').toUpperCase())}</td><td>${esc(e.schoolName)}</td><td>${esc(e.degree)}</td><td>${esc(e.yearGraduated)}</td><td>${esc(e.honors)}</td></tr>`);
+    rows.push(
+      `<tr><td class="lvl">${esc((e.level || "").toUpperCase())}</td><td>${esc(e.schoolName)}</td><td>${esc(e.degree)}</td><td>${esc(e.yearGraduated)}</td><td>${esc(e.honors)}</td></tr>`,
+    );
   }
-  return rows.join('');
+  return rows.join("");
 }
 
 function buildEligibilityRows(employee: Employee): string {
@@ -75,14 +99,16 @@ function buildEligibilityRows(employee: Employee): string {
     return `<tr><td colspan="5" class="empty">No civil service eligibility on file.</td></tr>`;
   }
   return employee.civilServiceEligibility
-    .map((r) => `<tr>
+    .map(
+      (r) => `<tr>
       <td>${esc(r.name)}</td>
       <td>${esc(r.rating)}</td>
       <td>${esc(r.examDate)}</td>
       <td>${esc(r.examPlace)}</td>
-      <td>${esc(r.licenseNumber)}${r.licenseValidUntil ? ` (valid until ${esc(r.licenseValidUntil)})` : ''}</td>
-    </tr>`)
-    .join('');
+      <td>${esc(r.licenseNumber)}${r.licenseValidUntil ? ` (valid until ${esc(r.licenseValidUntil)})` : ""}</td>
+    </tr>`,
+    )
+    .join("");
 }
 
 function buildWorkExperienceRows(employee: Employee): string {
@@ -90,15 +116,17 @@ function buildWorkExperienceRows(employee: Employee): string {
     return `<tr><td colspan="6" class="empty">No prior work experience on file.</td></tr>`;
   }
   return employee.workExperience
-    .map((w) => `<tr>
-      <td>${esc(w.fromDate)} – ${esc(w.toDate || 'Present')}</td>
+    .map(
+      (w) => `<tr>
+      <td>${esc(w.fromDate)} – ${esc(w.toDate || "Present")}</td>
       <td>${esc(w.position)}</td>
       <td>${esc(w.company)}</td>
       <td>${esc(w.statusOfAppointment)}</td>
-      <td class="ctr">${w.govtService === 'Y' ? 'Y' : w.govtService === 'N' ? 'N' : ''}</td>
+      <td class="ctr">${w.govtService === "Y" ? "Y" : w.govtService === "N" ? "N" : ""}</td>
       <td>${esc(w.description)}</td>
-    </tr>`)
-    .join('');
+    </tr>`,
+    )
+    .join("");
 }
 
 function buildVoluntaryWorkRows(employee: Employee): string {
@@ -106,13 +134,15 @@ function buildVoluntaryWorkRows(employee: Employee): string {
     return `<tr><td colspan="4" class="empty">No voluntary work on file.</td></tr>`;
   }
   return employee.voluntaryWork
-    .map((v) => `<tr>
+    .map(
+      (v) => `<tr>
       <td>${esc(v.organization)}</td>
-      <td>${esc(v.fromDate)} – ${esc(v.toDate || 'Present')}</td>
+      <td>${esc(v.fromDate)} – ${esc(v.toDate || "Present")}</td>
       <td class="ctr">${esc(v.hours)}</td>
       <td>${esc(v.position)}</td>
-    </tr>`)
-    .join('');
+    </tr>`,
+    )
+    .join("");
 }
 
 function buildTrainingRows(employee: Employee): string {
@@ -120,14 +150,16 @@ function buildTrainingRows(employee: Employee): string {
     return `<tr><td colspan="5" class="empty">No learning &amp; development records on file.</td></tr>`;
   }
   return employee.training
-    .map((t) => `<tr>
+    .map(
+      (t) => `<tr>
       <td>${esc(t.course)}</td>
       <td>${esc(t.fromDate)} – ${esc(t.completed)}</td>
       <td class="ctr">${esc(t.hours)}</td>
       <td>${esc(t.ldType)}</td>
       <td>${esc(t.conductedBy || t.provider)}</td>
-    </tr>`)
-    .join('');
+    </tr>`,
+    )
+    .join("");
 }
 
 function buildReferenceRows(employee: Employee): string {
@@ -136,20 +168,20 @@ function buildReferenceRows(employee: Employee): string {
   }
   return employee.pdsReferences
     .map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.address)}</td><td>${esc(r.contact)}</td></tr>`)
-    .join('');
+    .join("");
 }
 
 function buildChildrenBlock(employee: Employee): string {
   const p = employee.pds;
   if (p.children.length === 0) return '<span class="muted">None on file</span>';
-  return p.children.map((c) => `${esc(c.name)}${c.dob ? ` (b. ${esc(c.dob)})` : ''}`).join('; ');
+  return p.children.map((c) => `${esc(c.name)}${c.dob ? ` (b. ${esc(c.dob)})` : ""}`).join("; ");
 }
 
 function buildHtml(employee: Employee): string {
   const { first, middle, last } = splitName(employee.fullName);
   const p = employee.pds;
-  const generatedOn = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const cs = (employee.civilStatus || '').trim();
+  const generatedOn = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const cs = (employee.civilStatus || "").trim();
 
   return `<!DOCTYPE html>
 <html>
@@ -198,70 +230,70 @@ function buildHtml(employee: Employee): string {
 
   <div class="section-h">I. Personal Information</div>
   <div class="row">
-    ${field('1. Surname', last, 2)}
-    ${field('2. First Name', first, 2)}
-    ${field('Middle Name', middle, 2)}
-    ${field('Name Extension', p.nameExtension, 1)}
+    ${field("1. Surname", last, 2)}
+    ${field("2. First Name", first, 2)}
+    ${field("Middle Name", middle, 2)}
+    ${field("Name Extension", p.nameExtension, 1)}
   </div>
   <div class="row">
-    ${field('3. Date of Birth', employee.dob, 1)}
-    ${field('4. Place of Birth', p.placeOfBirth, 1)}
-    ${field('5. Sex at Birth', p.sexAtBirth, 1)}
-    ${field('6. Civil Status', cs, 1)}
+    ${field("3. Date of Birth", employee.dob, 1)}
+    ${field("4. Place of Birth", p.placeOfBirth, 1)}
+    ${field("5. Sex at Birth", p.sexAtBirth, 1)}
+    ${field("6. Civil Status", cs, 1)}
   </div>
   <div class="row">
-    ${field('7. Height (m)', p.heightM, 1)}
-    ${field('8. Weight (kg)', p.weightKg, 1)}
-    ${field('9. Blood Type', p.bloodType, 1)}
-    ${field('16. Citizenship', employee.nationality, 1)}
-    ${field('Dual Citizenship Country', p.dualCitizenshipCountry, 1)}
+    ${field("7. Height (m)", p.heightM, 1)}
+    ${field("8. Weight (kg)", p.weightKg, 1)}
+    ${field("9. Blood Type", p.bloodType, 1)}
+    ${field("16. Citizenship", employee.nationality, 1)}
+    ${field("Dual Citizenship Country", p.dualCitizenshipCountry, 1)}
   </div>
   <div class="row">
-    ${field('10. GSIS/UMID ID No.', p.gsisUmidNo, 1)}
-    ${field('11. Pag-IBIG ID No.', p.pagibigNo, 1)}
-    ${field('12. PhilHealth No.', p.philhealthNo, 1)}
-    ${field('13. PhilSys Number', p.philsysNumber, 1)}
+    ${field("10. GSIS/UMID ID No.", p.gsisUmidNo, 1)}
+    ${field("11. Pag-IBIG ID No.", p.pagibigNo, 1)}
+    ${field("12. PhilHealth No.", p.philhealthNo, 1)}
+    ${field("13. PhilSys Number", p.philsysNumber, 1)}
   </div>
   <div class="row">
-    ${field('14. TIN No.', p.tinNo, 1)}
-    ${field('15. Agency Employee No.', p.agencyEmployeeNo, 1)}
-    ${field('19. Telephone No.', p.telephoneNo, 1)}
-    ${field('20. Mobile No.', p.mobileNo, 1)}
-    ${field('21. Email Address', employee.email, 2)}
+    ${field("14. TIN No.", p.tinNo, 1)}
+    ${field("15. Agency Employee No.", p.agencyEmployeeNo, 1)}
+    ${field("19. Telephone No.", p.telephoneNo, 1)}
+    ${field("20. Mobile No.", p.mobileNo, 1)}
+    ${field("21. Email Address", employee.email, 2)}
   </div>
   <div class="row">
-    ${field('17. Residential Address', addrLine(p.residentialAddress), 1)}
+    ${field("17. Residential Address", addrLine(p.residentialAddress), 1)}
   </div>
   <div class="row">
-    ${field('18. Permanent Address', p.permanentSameAsResidential ? 'Same as residential address' : addrLine(p.permanentAddress), 1)}
+    ${field("18. Permanent Address", p.permanentSameAsResidential ? "Same as residential address" : addrLine(p.permanentAddress), 1)}
   </div>
 
   <div class="section-h">II. Family Background</div>
   <div class="row">
     ${field("22. Spouse's Surname", p.spouseSurname, 1)}
-    ${field('First Name', p.spouseFirstName, 1)}
-    ${field('Middle Name', p.spouseMiddleName, 1)}
-    ${field('Name Extension', p.spouseNameExtension, 1)}
+    ${field("First Name", p.spouseFirstName, 1)}
+    ${field("Middle Name", p.spouseMiddleName, 1)}
+    ${field("Name Extension", p.spouseNameExtension, 1)}
   </div>
   <div class="row">
-    ${field('Occupation', p.spouseOccupation, 1)}
-    ${field('Employer/Business Name', p.spouseEmployer, 1)}
-    ${field('Business Address', p.spouseBusinessAddress, 1)}
-    ${field('Telephone No.', p.spouseTelephone, 1)}
+    ${field("Occupation", p.spouseOccupation, 1)}
+    ${field("Employer/Business Name", p.spouseEmployer, 1)}
+    ${field("Business Address", p.spouseBusinessAddress, 1)}
+    ${field("Telephone No.", p.spouseTelephone, 1)}
   </div>
   <div class="row">
-    ${field('23. Name of Children (Date of Birth)', buildChildrenBlock(employee), 1)}
+    ${field("23. Name of Children (Date of Birth)", buildChildrenBlock(employee), 1)}
   </div>
   <div class="row">
     ${field("24. Father's Surname", p.fatherSurname, 1)}
-    ${field('First Name', p.fatherFirstName, 1)}
-    ${field('Middle Name', p.fatherMiddleName, 1)}
-    ${field('Name Extension', p.fatherNameExtension, 1)}
+    ${field("First Name", p.fatherFirstName, 1)}
+    ${field("Middle Name", p.fatherMiddleName, 1)}
+    ${field("Name Extension", p.fatherNameExtension, 1)}
   </div>
   <div class="row">
     ${field("25. Mother's Maiden Surname", p.motherMaidenSurname, 1)}
-    ${field('First Name', p.motherFirstName, 1)}
-    ${field('Middle Name', p.motherMiddleName, 1)}
+    ${field("First Name", p.motherFirstName, 1)}
+    ${field("Middle Name", p.motherMiddleName, 1)}
   </div>
 
   <div class="section-h">III. Educational Background</div>
@@ -309,28 +341,31 @@ function buildHtml(employee: Employee): string {
 <div class="page">
   <div class="section-h">VIII. Other Information</div>
   <div class="row">
-    ${field('33a. Special Skills and Hobbies', p.specialSkillsHobbies, 1)}
+    ${field("33a. Special Skills and Hobbies", p.specialSkillsHobbies, 1)}
   </div>
   <div class="row">
-    ${field('33b. Non-Academic Distinctions / Recognition', p.nonAcademicDistinctions, 1)}
+    ${field("33b. Non-Academic Distinctions / Recognition", p.nonAcademicDistinctions, 1)}
   </div>
   <div class="row">
-    ${field('33c. Membership in Association / Organization', p.orgMemberships, 1)}
+    ${field("33c. Membership in Association / Organization", p.orgMemberships, 1)}
   </div>
 
   <div class="section-h">Declarations</div>
-  ${yesNoLine('34a. Related within the third degree of consanguinity/affinity to the appointing or recommending authority?', p.q34RelatedThirdDegree, p.q34Details)}
-  ${yesNoLine('34b. Related within the fourth degree of consanguinity/affinity to the appointing officer (LGU)?', p.q34RelatedFourthDegree, p.q34Details)}
-  ${yesNoLine('35a. Ever been found guilty of any administrative offense?', p.q35aAdminOffense, p.q35aDetails)}
-  ${yesNoLine('35b. Criminally charged before any court?', p.q35bCriminalCharge, p.q35bDetails, [{ label: 'Date Filed', value: p.q35bDateFiled }, { label: 'Status', value: p.q35bStatus }])}
-  ${yesNoLine('36. Convicted of any crime or violation of law, decree, ordinance or regulation?', p.q36Convicted, p.q36Details)}
-  ${yesNoLine('37. Separated from the service (resignation, retirement, dismissal, dropped, etc.)?', p.q37Separated, p.q37Details)}
-  ${yesNoLine('38a. Ever been a candidate in a national or local election (except barangay election)?', p.q38aCandidate, p.q38aDetails)}
-  ${yesNoLine('38b. Resigned from government service to campaign for a candidate/political party?', p.q38bResigned, p.q38bDetails)}
-  ${yesNoLine('39. Acquired the status of an immigrant or permanent resident of another country?', p.q39Immigrant, null, [{ label: 'Country', value: p.q39Country }])}
-  ${yesNoLine('40a. Member of any indigenous group?', p.q40aIndigenous, p.q40aDetails)}
-  ${yesNoLine('40b. Person with disability?', p.q40bPwd, null, [{ label: 'ID No.', value: p.q40bIdNo }])}
-  ${yesNoLine('40c. Solo parent?', p.q40cSoloParent, null, [{ label: 'ID No.', value: p.q40cIdNo }])}
+  ${yesNoLine("34a. Related within the third degree of consanguinity/affinity to the appointing or recommending authority?", p.q34RelatedThirdDegree, p.q34Details)}
+  ${yesNoLine("34b. Related within the fourth degree of consanguinity/affinity to the appointing officer (LGU)?", p.q34RelatedFourthDegree, p.q34Details)}
+  ${yesNoLine("35a. Ever been found guilty of any administrative offense?", p.q35aAdminOffense, p.q35aDetails)}
+  ${yesNoLine("35b. Criminally charged before any court?", p.q35bCriminalCharge, p.q35bDetails, [
+    { label: "Date Filed", value: p.q35bDateFiled },
+    { label: "Status", value: p.q35bStatus },
+  ])}
+  ${yesNoLine("36. Convicted of any crime or violation of law, decree, ordinance or regulation?", p.q36Convicted, p.q36Details)}
+  ${yesNoLine("37. Separated from the service (resignation, retirement, dismissal, dropped, etc.)?", p.q37Separated, p.q37Details)}
+  ${yesNoLine("38a. Ever been a candidate in a national or local election (except barangay election)?", p.q38aCandidate, p.q38aDetails)}
+  ${yesNoLine("38b. Resigned from government service to campaign for a candidate/political party?", p.q38bResigned, p.q38bDetails)}
+  ${yesNoLine("39. Acquired the status of an immigrant or permanent resident of another country?", p.q39Immigrant, null, [{ label: "Country", value: p.q39Country }])}
+  ${yesNoLine("40a. Member of any indigenous group?", p.q40aIndigenous, p.q40aDetails)}
+  ${yesNoLine("40b. Person with disability?", p.q40bPwd, null, [{ label: "ID No.", value: p.q40bIdNo }])}
+  ${yesNoLine("40c. Solo parent?", p.q40cSoloParent, null, [{ label: "ID No.", value: p.q40cIdNo }])}
 
   <div class="section-h">41. References</div>
   <table>
@@ -339,10 +374,10 @@ function buildHtml(employee: Employee): string {
   </table>
 
   <div class="row">
-    ${field('Government Issued ID', p.govIdType, 1)}
-    ${field('ID / License / Passport No.', p.govIdNumber, 1)}
-    ${field('Date of Issuance', p.govIdDateIssued, 1)}
-    ${field('Place of Issuance', p.govIdPlaceIssued, 1)}
+    ${field("Government Issued ID", p.govIdType, 1)}
+    ${field("ID / License / Passport No.", p.govIdNumber, 1)}
+    ${field("Date of Issuance", p.govIdDateIssued, 1)}
+    ${field("Place of Issuance", p.govIdPlaceIssued, 1)}
   </div>
 
   <p style="font-size:9px; margin-top:18px;">I certify that the above information is true and correct to the best of my knowledge and belief.</p>
@@ -359,22 +394,15 @@ function buildHtml(employee: Employee): string {
 }
 
 /**
- * Opens a new tab with a print-ready Personal Data Sheet, laid out to follow
- * CS Form No. 212 (Revised 2025), built from the employee's existing 201
- * file records (including PDS Details), and triggers the browser print
- * dialog, letting the user save it as a PDF.
+ * Builds a print-ready Personal Data Sheet, laid out to follow CS Form
+ * No. 212 (Revised 2025), from the employee's existing 201 file records
+ * (including PDS Details), and triggers the browser print dialog, letting
+ * the user save it as a PDF. Prints via a hidden iframe rather than a new
+ * tab so it can't be silently blocked by the browser's popup blocker.
  */
 export function exportPds(employee: Employee): void {
   const html = buildHtml(employee);
-  const win = window.open('', '_blank');
-  if (!win) return;
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => {
-    win.print();
-  }, 300);
+  printHtmlDocument(html);
 }
 
 /**
@@ -386,10 +414,10 @@ export function exportPds(employee: Employee): void {
  */
 export function parsePdsImportText(text: string): Partial<PdsDetails> {
   const raw = JSON.parse(text);
-  const source = raw && typeof raw === 'object' && raw.pds && typeof raw.pds === 'object' ? raw.pds : raw;
+  const source = raw && typeof raw === "object" && raw.pds && typeof raw.pds === "object" ? raw.pds : raw;
   const template = emptyPdsDetails();
   const result: Partial<PdsDetails> = {};
-  if (!source || typeof source !== 'object') return result;
+  if (!source || typeof source !== "object") return result;
   for (const key of Object.keys(template) as (keyof PdsDetails)[]) {
     if (Object.prototype.hasOwnProperty.call(source, key)) {
       (result as Record<string, unknown>)[key] = (source as Record<string, unknown>)[key];
