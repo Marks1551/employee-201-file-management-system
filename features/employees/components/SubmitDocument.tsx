@@ -1,15 +1,25 @@
-'use client';
+"use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { UploadCloud, Paperclip } from 'lucide-react';
-import Layout from '@/shared/components/Layout';
-import NoEmployeeLinked from '@/features/employees/components/NoEmployeeLinked';
-import { Card, Button, Field, inputCls, Tag } from '@/shared/components/ui';
-import { TableWrap, Th, Td } from '@/shared/components/Table';
-import { useApp } from '@/shared/context/AppContext';
-import { useToast } from '@/shared/context/ToastContext';
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { UploadCloud, Paperclip } from "lucide-react";
+import Layout from "@/shared/components/Layout";
+import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
+import { Card, Button, Field, inputCls, Tag } from "@/shared/components/ui";
+import { TableWrap, Th, Td } from "@/shared/components/Table";
+import { useApp } from "@/shared/context/AppContext";
+import { useToast } from "@/shared/context/ToastContext";
 
-const docTypes = ['NBI Clearance', 'Government-Issued ID', 'Diploma / Transcript of Records', 'Employment Contract', 'Training Certificate', 'Other'];
+const docTypes = [
+  "NBI Clearance",
+  "Government-Issued ID",
+  "Diploma / Transcript of Records",
+  "Employment Contract",
+  "Medical Certificate",
+  "License",
+  "PRC",
+  "Training Certificate",
+  "Other",
+];
 
 export default function SubmitDocument() {
   const { currentEmployee, submitDocument, ready } = useApp();
@@ -18,7 +28,7 @@ export default function SubmitDocument() {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const fileInputId = 'docfile';
+  const fileInputId = "docfile";
 
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="Submit a Document" />;
@@ -41,14 +51,16 @@ export default function SubmitDocument() {
       showToast(result.error);
       return;
     }
-    showToast('Document submitted. HR will review your upload shortly.');
+    showToast("Document submitted. HR will review your upload shortly.");
     setFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   return (
     <Layout role="faculty" eyebrow="Faculty" title="Submit a Document">
-      <p className="text-ink-muted mb-6">Upload a missing or updated file below. HR will review it and update your 201 file.</p>
+      <p className="text-ink-muted mb-6">
+        Upload a missing or updated file below. HR will review it and update your 201 file.
+      </p>
 
       <div className="grid gap-6 md:grid-cols-[1fr_1.1fr]">
         <Card>
@@ -63,8 +75,16 @@ export default function SubmitDocument() {
           </div>
           <form onSubmit={handleSubmit}>
             <Field label="Document type" htmlFor="doctype">
-              <select id="doctype" className={inputCls} value={docType} onChange={(e) => setDocType(e.target.value)} required>
-                {docTypes.map((d) => <option key={d}>{d}</option>)}
+              <select
+                id="doctype"
+                className={inputCls}
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                required
+              >
+                {docTypes.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
               </select>
             </Field>
             <Field label="Choose file" htmlFor={fileInputId} hint="Accepted formats: PDF, JPG, PNG. Maximum 5 MB.">
@@ -72,10 +92,10 @@ export default function SubmitDocument() {
                 type="button"
                 id={fileInputId}
                 onClick={pickFile}
-                className={`${inputCls} flex items-center gap-2 text-left ${file ? 'text-ink' : 'text-ink-faint'} bg-cream cursor-pointer`}
+                className={`${inputCls} flex items-center gap-2 text-left ${file ? "text-ink" : "text-ink-faint"} bg-cream cursor-pointer`}
               >
                 <Paperclip size={18} className="flex-shrink-0 text-ink-faint" />
-                {file?.name || 'No file chosen'}
+                {file?.name || "No file chosen"}
               </button>
               <input
                 ref={fileInputRef}
@@ -87,7 +107,7 @@ export default function SubmitDocument() {
             </Field>
             <Button type="submit" disabled={!file || submitting} className="w-full">
               <UploadCloud size={18} />
-              {submitting ? 'Submitting…' : 'Submit Document'}
+              {submitting ? "Submitting…" : "Submit Document"}
             </Button>
           </form>
         </Card>
@@ -107,11 +127,11 @@ export default function SubmitDocument() {
                   <tr key={doc.id} className="hover:bg-[#FBFAF7]">
                     <Td className="font-semibold text-ink">{doc.name}</Td>
                     <Td>
-                      {doc.status === 'uploaded' && <Tag kind="ok">Uploaded</Tag>}
-                      {doc.status === 'pending' && <Tag kind="warn">Pending Review</Tag>}
-                      {doc.status === 'rejected' && <Tag kind="danger">Rejected — resubmit</Tag>}
-                      {doc.status === 'missing' && <Tag kind="danger">Missing</Tag>}
-                      {doc.status === 'rejected' && doc.reviewNote && (
+                      {doc.status === "uploaded" && <Tag kind="ok">Uploaded</Tag>}
+                      {doc.status === "pending" && <Tag kind="warn">Pending Review</Tag>}
+                      {doc.status === "rejected" && <Tag kind="danger">Rejected — resubmit</Tag>}
+                      {doc.status === "missing" && <Tag kind="danger">Missing</Tag>}
+                      {doc.status === "rejected" && doc.reviewNote && (
                         <p className="mt-1 mb-0 text-[0.78rem] text-ink-faint">HR note: {doc.reviewNote}</p>
                       )}
                     </Td>
