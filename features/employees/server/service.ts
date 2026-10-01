@@ -192,7 +192,43 @@ function mapAttendanceRow(row: AttendanceRow): AttendanceRecord {
 
 // ---------- employees ----------
 
+/** Makes sure every employee has a row for each required document type
+ *  (DEFAULT_DOC_TYPES), so e.g. an Employment Contract HR never added earlier
+ *  still shows up as "missing" and can be uploaded. Runs once per server start;
+ *  new employees already get their rows in createEmployee. */
+let requiredDocsEnsured: Promise<void> | null = null;
+
+function ensureRequiredDocuments(): Promise<void> {
+  if (!requiredDocsEnsured) {
+    requiredDocsEnsured = (async () => {
+      const touched = new Set<string>();
+      for (const name of DEFAULT_DOC_TYPES) {
+        const lacking = await query<{ id: string }>(
+          "SELECT e.id FROM employees e WHERE NOT EXISTS (SELECT 1 FROM documents d WHERE d.employee_id = e.id AND d.name = ?)",
+          [name],
+        );
+        for (const { id } of lacking) {
+          await execute("INSERT INTO documents (id, employee_id, name, status, uploaded_at) VALUES (?,?,?,?,?)", [
+            `d-${randomUUID()}`,
+            id,
+            name,
+            "missing",
+            null,
+          ]);
+          touched.add(id);
+        }
+      }
+      for (const id of touched) await syncNotificationsForEmployee(id);
+    })().catch((err) => {
+      requiredDocsEnsured = null; // try again on the next request
+      console.error("ensureRequiredDocuments failed:", err);
+    });
+  }
+  return requiredDocsEnsured;
+}
+
 export async function listEmployees(): Promise<Employee[]> {
+  await ensureRequiredDocuments();
   const [
     employees,
     docs,
@@ -242,6 +278,7 @@ export async function findEmployeeByNumber(
 }
 
 export async function getEmployee(id: string): Promise<Employee | null> {
+  await ensureRequiredDocuments();
   const [
     rows,
     docs,
@@ -282,11 +319,14 @@ export async function getEmployee(id: string): Promise<Employee | null> {
   };
 }
 
-const DEFAULT_DOC_TYPES = [
+export const DEFAULT_DOC_TYPES = [
   "Government-Issued ID",
   "Diploma / Transcript of Records",
   "NBI Clearance",
   "Employment Contract",
+  "Medical Certificate",
+  "License",
+  "PRC",
 ];
 
 /** Contract end date only makes sense for contractual staff — clear it for Regular. */
