@@ -611,10 +611,10 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           fields={[
             { key: "name", label: "Eligibility (CES/CSEE/Career Service/RA 1080/etc.)", required: true },
             { key: "rating", label: "Rating (if applicable)" },
-            { key: "examDate", label: "Date of Examination / Conferment" },
+            { key: "examDate", label: "Date of Examination / Conferment", type: "date" },
             { key: "examPlace", label: "Place of Examination / Conferment" },
             { key: "licenseNumber", label: "License Number (if applicable)" },
-            { key: "licenseValidUntil", label: "License Valid Until" },
+            { key: "licenseValidUntil", label: "License Valid Until", type: "date" },
           ]}
           emptyForm={{ name: "", rating: "", examDate: "", examPlace: "", licenseNumber: "", licenseValidUntil: "" }}
           columns={[
@@ -641,8 +641,8 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           itemLabel={(r) => r.organization}
           fields={[
             { key: "organization", label: "Name & address of organization", required: true },
-            { key: "fromDate", label: "From" },
-            { key: "toDate", label: "To" },
+            { key: "fromDate", label: "From", type: "date" },
+            { key: "toDate", label: "To", type: "date" },
             { key: "hours", label: "Number of hours" },
             { key: "position", label: "Position / nature of work" },
           ]}

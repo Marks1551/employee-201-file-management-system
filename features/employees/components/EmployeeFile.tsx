@@ -551,8 +551,8 @@ export default function HREmployeeFile() {
                 fields={[
                   { key: "course", label: "Course / training title", required: true },
                   { key: "provider", label: "Provider" },
-                  { key: "fromDate", label: "From", hint: "e.g. August 2026" },
-                  { key: "completed", label: "To / Date completed", hint: "e.g. August 2026" },
+                  { key: "fromDate", label: "From", type: "date" },
+                  { key: "completed", label: "To / Date completed", type: "date" },
                   { key: "hours", label: "Number of hours" },
                   { key: "ldType", label: "Type of L&D", hint: "Managerial, Supervisory, Technical, etc." },
                   { key: "conductedBy", label: "Conducted / Sponsored by" },
@@ -674,8 +674,8 @@ export default function HREmployeeFile() {
                 fields={[
                   { key: "company", label: "Company / employer", required: true },
                   { key: "position", label: "Position" },
-                  { key: "fromDate", label: "From", hint: "e.g. June 2015" },
-                  { key: "toDate", label: "To", hint: "e.g. May 2019 — leave blank if current" },
+                  { key: "fromDate", label: "From", type: "date" },
+                  { key: "toDate", label: "To", type: "date", hint: "Leave blank if current" },
                   {
                     key: "statusOfAppointment",
                     label: "Status of Appointment",

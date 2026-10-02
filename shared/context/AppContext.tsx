@@ -54,6 +54,8 @@ export interface AppContextValue {
   notifications: Notification[];
   meta: AppMeta;
   ready: boolean;
+  /** true while the first load / post-login data fetch is in progress */
+  loading: boolean;
   currentUser: User | null;
   currentEmployee: Employee | null;
 
@@ -159,6 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [meta, setMeta] = useState<AppMeta>({ lastBackup: "" });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const refreshAll = useCallback(async () => {
     const [empRes, usersRes, auditRes, metaRes, notifRes] = await Promise.all([
@@ -175,20 +178,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(notifRes.notifications);
   }, []);
 
+  // Used for the initial load and right after sign-in: flips `loading` so the UI
+  // shows a spinner instead of empty/stale data. (Plain refreshAll — used after
+  // every save — stays silent so edits don't flash a full-page loader.)
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      await refreshAll();
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshAll]);
+
   // On first load, check for an existing session (httpOnly cookie) and hydrate data.
   useEffect(() => {
     (async () => {
       try {
         const { user } = await api<{ user: User | null }>("/api/auth/me");
         setCurrentUser(user);
-        if (user) await refreshAll();
+        if (user) await loadAll();
       } catch {
         // not signed in / server unreachable — leave defaults
       } finally {
         setReady(true);
       }
     })();
-  }, [refreshAll]);
+  }, [loadAll]);
 
   const currentEmployee = useMemo(
     () => (currentUser?.employeeId ? employees.find((e) => e.id === currentUser.employeeId) || null : null),
@@ -204,13 +219,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           body: { identifier, password },
         });
         setCurrentUser(user);
-        await refreshAll();
+        await loadAll();
         return { ok: true as const, user };
       } catch (err) {
         return { ok: false as const, error: errorMessage(err) };
       }
     },
-    [refreshAll],
+    [loadAll],
   );
 
   const loginAsDemo = useCallback(
@@ -218,13 +233,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const { user } = await api<{ user: User }>("/api/auth/demo", { method: "POST", body: { role } });
         setCurrentUser(user);
-        await refreshAll();
+        await loadAll();
         return user;
       } catch {
         return null;
       }
     },
-    [refreshAll],
+    [loadAll],
   );
 
   const logout = useCallback(async () => {
@@ -249,13 +264,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           body: { token, password },
         });
         setCurrentUser(user);
-        await refreshAll();
+        await loadAll();
         return { ok: true as const, user };
       } catch (err) {
         return { ok: false as const, error: errorMessage(err) };
       }
     },
-    [refreshAll],
+    [loadAll],
   );
 
   const requestPasswordReset = useCallback(async (identifier: string): Promise<ActionResult> => {
@@ -768,6 +783,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     notifications,
     meta,
     ready,
+    loading,
     currentUser,
     currentEmployee,
     login,
