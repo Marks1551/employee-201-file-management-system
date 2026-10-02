@@ -522,6 +522,12 @@ export default function HREmployeeFile() {
                                 <UploadCloud size={14} />
                                 {docBusyId === doc.id ? "Uploading…" : "Upload"}
                               </Button>
+                              {doc.status === "rejected" && doc.pendingFileUrl && (
+                                <Button variant="ghost" sm onClick={() => setViewDoc(doc)}>
+                                  <Eye size={16} />
+                                  View rejected
+                                </Button>
+                              )}
                               {doc.status === "rejected" && doc.reviewNote && (
                                 <span className="text-[0.78rem] text-ink-faint" title={doc.reviewNote}>
                                   Reason: {doc.reviewNote}
@@ -1050,6 +1056,39 @@ export default function HREmployeeFile() {
                   Reject
                 </Button>
               </div>
+            </div>
+          </div>
+        ) : viewDoc?.status === "rejected" && viewDoc.pendingFileUrl ? (
+          <div>
+            <div className="mb-3 flex items-center gap-2 flex-wrap">
+              <Tag kind="danger">Rejected</Tag>
+              <span className="text-[0.86rem] text-ink-muted">
+                {viewDoc.reviewedBy ? `Rejected by ${viewDoc.reviewedBy}` : "Rejected"}
+                {viewDoc.reviewedAt ? ` on ${viewDoc.reviewedAt}` : ""}. Not applied to the 201 file.
+              </span>
+            </div>
+            {viewDoc.reviewNote && <p className="text-[0.86rem] text-ink-muted mb-3">Reason: {viewDoc.reviewNote}</p>}
+            {viewDoc.pendingFileType?.startsWith("image/") ? (
+              <img
+                src={viewDoc.pendingFileUrl}
+                alt={viewDoc.name}
+                className="w-full max-h-[60vh] object-contain rounded-xl border border-border bg-navy-100"
+              />
+            ) : (
+              <iframe
+                src={viewDoc.pendingFileUrl}
+                title={viewDoc.name}
+                className="w-full h-[60vh] rounded-xl border border-border"
+              />
+            )}
+            <div className="mt-3">
+              <a
+                href={viewDoc.pendingFileUrl}
+                download={viewDoc.pendingFileName || undefined}
+                className="text-navy font-semibold text-[0.86rem] no-underline hover:underline"
+              >
+                Download
+              </a>
             </div>
           </div>
         ) : viewDoc?.fileUrl ? (

@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react';
-import { FileDown } from 'lucide-react';
-import Layout from '@/shared/components/Layout';
-import NoEmployeeLinked from '@/features/employees/components/NoEmployeeLinked';
-import Tabs from '@/shared/components/Tabs';
-import { Card, Tag, Avatar, Button } from '@/shared/components/ui';
-import { TableWrap, Th, Td } from '@/shared/components/Table';
-import { useApp } from '@/shared/context/AppContext';
-import { exportPds } from '@/shared/lib/pds';
-import { documentCompletion } from '@/shared/lib/documentCompletion';
-import PdsDetailsForm from '@/features/employees/components/PdsDetailsForm';
-import GovernmentBenefitsForm from '@/features/employees/components/GovernmentBenefitsForm';
+import type { ReactNode } from "react";
+import { FileDown, Eye } from "lucide-react";
+import Layout from "@/shared/components/Layout";
+import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
+import Tabs from "@/shared/components/Tabs";
+import { Card, Tag, Avatar, Button } from "@/shared/components/ui";
+import { TableWrap, Th, Td } from "@/shared/components/Table";
+import { useApp } from "@/shared/context/AppContext";
+import { exportPds } from "@/shared/lib/pds";
+import { documentCompletion } from "@/shared/lib/documentCompletion";
+import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
+import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
 
 interface ReadOnlyColumn<T> {
   key: string;
@@ -22,17 +22,25 @@ function readOnlyTable<T extends { id: string }>(items: T[], columns: ReadOnlyCo
     <TableWrap>
       <table className="w-full border-collapse min-w-[500px]">
         <thead>
-          <tr>{columns.map((c) => <Th key={c.key}>{c.label}</Th>)}</tr>
+          <tr>
+            {columns.map((c) => (
+              <Th key={c.key}>{c.label}</Th>
+            ))}
+          </tr>
         </thead>
         <tbody>
           {items.length === 0 && (
-            <tr><Td colSpan={columns.length} className="text-ink-faint">{emptyMessage}</Td></tr>
+            <tr>
+              <Td colSpan={columns.length} className="text-ink-faint">
+                {emptyMessage}
+              </Td>
+            </tr>
           )}
           {items.map((item) => (
             <tr key={item.id} className="hover:bg-[#FBFAF7]">
               {columns.map((c, i) => (
-                <Td key={c.key} className={i === 0 ? 'font-semibold text-ink' : ''}>
-                  {c.render ? c.render(item) : ((item as Record<string, ReactNode>)[c.key] || '—')}
+                <Td key={c.key} className={i === 0 ? "font-semibold text-ink" : ""}>
+                  {c.render ? c.render(item) : (item as Record<string, ReactNode>)[c.key] || "—"}
                 </Td>
               ))}
             </tr>
@@ -48,7 +56,7 @@ export default function Faculty201File() {
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="My 201 File" />;
   const { missingCount, rejectedCount, isComplete } = documentCompletion(currentEmployee.documents);
-  const pendingCount = currentEmployee.documents.filter((d) => d.status === 'pending').length;
+  const pendingCount = currentEmployee.documents.filter((d) => d.status === "pending").length;
 
   return (
     <Layout role="faculty" eyebrow="Faculty" title="My 201 File">
@@ -57,7 +65,8 @@ export default function Faculty201File() {
         <div className="flex-1 min-w-[200px]">
           <h2 className="mb-1">{currentEmployee.displayName}</h2>
           <p className="text-ink-muted text-[0.86rem] m-0">
-            Employee #{currentEmployee.employeeNumber} &nbsp;&middot;&nbsp; {currentEmployee.position} &nbsp;&middot;&nbsp; {currentEmployee.department}
+            Employee #{currentEmployee.employeeNumber} &nbsp;&middot;&nbsp; {currentEmployee.position}{" "}
+            &nbsp;&middot;&nbsp; {currentEmployee.department}
           </p>
         </div>
         {isComplete ? (
@@ -65,11 +74,11 @@ export default function Faculty201File() {
         ) : (
           <Tag kind="danger">
             {[
-              missingCount > 0 ? `${missingCount} document${missingCount > 1 ? 's' : ''} missing` : null,
+              missingCount > 0 ? `${missingCount} document${missingCount > 1 ? "s" : ""} missing` : null,
               rejectedCount > 0 ? `${rejectedCount} rejected` : null,
             ]
               .filter(Boolean)
-              .join(', ')}
+              .join(", ")}
           </Tag>
         )}
         {pendingCount > 0 && <Tag kind="warn">{pendingCount} awaiting HR review</Tag>}
@@ -86,8 +95,8 @@ export default function Faculty201File() {
       <Tabs
         tabs={[
           {
-            key: 'info',
-            label: 'Personal & Employment Info',
+            key: "info",
+            label: "Personal & Employment Info",
             content: (
               <Card>
                 <div className="grid gap-x-8 md:grid-cols-2">
@@ -100,11 +109,18 @@ export default function Faculty201File() {
                     <InfoRow label="Department" value={currentEmployee.department} />
                     <InfoRow label="Position" value={currentEmployee.position} />
                     <InfoRow label="Date hired" value={currentEmployee.dateHired} />
-                    <InfoRow label="Employment status" value={<Tag kind={currentEmployee.employmentStatus === 'Regular' ? 'ok' : 'warn'}>{currentEmployee.employmentStatus}</Tag>} />
-                    {currentEmployee.employmentStatus !== 'Regular' && (
+                    <InfoRow
+                      label="Employment status"
+                      value={
+                        <Tag kind={currentEmployee.employmentStatus === "Regular" ? "ok" : "warn"}>
+                          {currentEmployee.employmentStatus}
+                        </Tag>
+                      }
+                    />
+                    {currentEmployee.employmentStatus !== "Regular" && (
                       <>
-                        <InfoRow label="Contract start" value={currentEmployee.contractStart || '—'} />
-                        <InfoRow label="Contract end" value={currentEmployee.contractEnd || '—'} last />
+                        <InfoRow label="Contract start" value={currentEmployee.contractStart || "—"} />
+                        <InfoRow label="Contract end" value={currentEmployee.contractEnd || "—"} last />
                       </>
                     )}
                   </div>
@@ -113,104 +129,155 @@ export default function Faculty201File() {
             ),
           },
           {
-            key: 'documents',
-            label: 'My Documents',
+            key: "documents",
+            label: "My Documents",
             content: readOnlyTable(
               currentEmployee.documents,
               [
-                { key: 'name', label: 'Document' },
-                { key: 'status', label: 'Status', render: (d) => (
-                  d.status === 'uploaded' ? <Tag kind="ok">Uploaded</Tag> :
-                  d.status === 'pending' ? <Tag kind="warn">Pending Review</Tag> :
-                  d.status === 'rejected' ? <Tag kind="danger">Rejected</Tag> :
-                  <Tag kind="danger">Missing</Tag>
-                ) },
-                { key: 'uploaded', label: 'Uploaded' },
-                { key: 'reviewNote', label: 'Note', render: (d) => (d.status === 'rejected' && d.reviewNote ? d.reviewNote : '—') },
+                { key: "name", label: "Document" },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (d) =>
+                    d.status === "uploaded" ? (
+                      <Tag kind="ok">Uploaded</Tag>
+                    ) : d.status === "pending" ? (
+                      <Tag kind="warn">Pending Review</Tag>
+                    ) : d.status === "rejected" ? (
+                      <Tag kind="danger">Rejected</Tag>
+                    ) : (
+                      <Tag kind="danger">Missing</Tag>
+                    ),
+                },
+                { key: "uploaded", label: "Uploaded" },
+                {
+                  key: "reviewNote",
+                  label: "Note",
+                  render: (d) => (d.status === "rejected" && d.reviewNote ? d.reviewNote : "—"),
+                },
+                {
+                  key: "rejectedFile",
+                  label: "Rejected file",
+                  render: (d) =>
+                    d.status === "rejected" && d.pendingFileUrl ? (
+                      <a
+                        href={d.pendingFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-navy font-semibold no-underline hover:underline"
+                      >
+                        <Eye size={14} />
+                        View
+                      </a>
+                    ) : (
+                      "—"
+                    ),
+                },
               ],
-              'No documents on file yet.'
+              "No documents on file yet.",
             ),
           },
           {
-            key: 'education',
-            label: 'Educational Background',
+            key: "education",
+            label: "Educational Background",
             content: readOnlyTable(
               currentEmployee.education,
               [
-                { key: 'level', label: 'Level' },
-                { key: 'schoolName', label: 'School' },
-                { key: 'degree', label: 'Degree / Course' },
-                { key: 'yearGraduated', label: 'Year Graduated' },
-                { key: 'honors', label: 'Honors' },
+                { key: "level", label: "Level" },
+                { key: "schoolName", label: "School" },
+                { key: "degree", label: "Degree / Course" },
+                { key: "yearGraduated", label: "Year Graduated" },
+                { key: "honors", label: "Honors" },
               ],
-              'No educational background on file yet.'
+              "No educational background on file yet.",
             ),
           },
           {
-            key: 'training',
-            label: 'Training',
+            key: "training",
+            label: "Training",
             content: readOnlyTable(
               currentEmployee.training,
               [
-                { key: 'course', label: 'Training / Course' },
-                { key: 'provider', label: 'Provider' },
-                { key: 'completed', label: 'Completed' },
-                { key: 'certStatus', label: 'Certificate', render: (t) => (t.certStatus === 'on-file' ? <Tag kind="ok">On file</Tag> : <Tag kind="warn">Expiring soon</Tag>) },
+                { key: "course", label: "Training / Course" },
+                { key: "provider", label: "Provider" },
+                { key: "completed", label: "Completed" },
+                {
+                  key: "certStatus",
+                  label: "Certificate",
+                  render: (t) =>
+                    t.certStatus === "on-file" ? <Tag kind="ok">On file</Tag> : <Tag kind="warn">Expiring soon</Tag>,
+                },
               ],
-              'No training records on file yet.'
+              "No training records on file yet.",
             ),
           },
           {
-            key: 'workExperience',
-            label: 'Work Experience',
+            key: "workExperience",
+            label: "Work Experience",
             content: readOnlyTable(
               currentEmployee.workExperience,
               [
-                { key: 'company', label: 'Company' },
-                { key: 'position', label: 'Position' },
-                { key: 'fromDate', label: 'From' },
-                { key: 'toDate', label: 'To', render: (r) => r.toDate || 'Present' },
+                { key: "company", label: "Company" },
+                { key: "position", label: "Position" },
+                { key: "fromDate", label: "From" },
+                { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
               ],
-              'No prior work experience on file yet.'
+              "No prior work experience on file yet.",
             ),
           },
           {
-            key: 'performance',
-            label: 'Performance',
+            key: "performance",
+            label: "Performance",
             content: readOnlyTable(
               currentEmployee.performance,
               [
-                { key: 'period', label: 'Period' },
-                { key: 'rating', label: 'Rating', render: (r) => <Tag kind={r.rating === 'Outstanding' || r.rating === 'Very Satisfactory' ? 'ok' : r.rating === 'Needs Improvement' || r.rating === 'Unsatisfactory' ? 'danger' : 'neutral'}>{r.rating || '—'}</Tag> },
-                { key: 'reviewer', label: 'Reviewed By' },
-                { key: 'remarks', label: 'Remarks' },
+                { key: "period", label: "Period" },
+                {
+                  key: "rating",
+                  label: "Rating",
+                  render: (r) => (
+                    <Tag
+                      kind={
+                        r.rating === "Outstanding" || r.rating === "Very Satisfactory"
+                          ? "ok"
+                          : r.rating === "Needs Improvement" || r.rating === "Unsatisfactory"
+                            ? "danger"
+                            : "neutral"
+                      }
+                    >
+                      {r.rating || "—"}
+                    </Tag>
+                  ),
+                },
+                { key: "reviewer", label: "Reviewed By" },
+                { key: "remarks", label: "Remarks" },
               ],
-              'No performance reviews on file yet.'
+              "No performance reviews on file yet.",
             ),
           },
           {
-            key: 'pds',
-            label: 'PDS Details',
+            key: "pds",
+            label: "PDS Details",
             content: <PdsDetailsForm employee={currentEmployee} readOnly />,
           },
           {
-            key: 'benefits',
-            label: 'Government Benefits',
+            key: "benefits",
+            label: "Government Benefits",
             content: <GovernmentBenefitsForm employee={currentEmployee} readOnly />,
           },
           {
-            key: 'attendance',
-            label: 'Attendance',
+            key: "attendance",
+            label: "Attendance",
             content: readOnlyTable(
               currentEmployee.attendance,
               [
-                { key: 'period', label: 'Period' },
-                { key: 'daysPresent', label: 'Present' },
-                { key: 'daysAbsent', label: 'Absent' },
-                { key: 'daysLate', label: 'Late' },
-                { key: 'remarks', label: 'Remarks' },
+                { key: "period", label: "Period" },
+                { key: "daysPresent", label: "Present" },
+                { key: "daysAbsent", label: "Absent" },
+                { key: "daysLate", label: "Late" },
+                { key: "remarks", label: "Remarks" },
               ],
-              'No attendance records on file yet.'
+              "No attendance records on file yet.",
             ),
           },
         ]}
@@ -227,7 +294,7 @@ interface InfoRowProps {
 
 function InfoRow({ label, value, last }: InfoRowProps) {
   return (
-    <div className={last ? '' : 'mb-4'}>
+    <div className={last ? "" : "mb-4"}>
       <p className="text-[0.82rem] text-ink-faint mb-0.5">{label}</p>
       <p className="mb-0">{value}</p>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { UploadCloud, Paperclip } from "lucide-react";
+import { UploadCloud, Paperclip, Eye } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
 import { Card, Button, Field, inputCls, Tag } from "@/shared/components/ui";
@@ -133,6 +133,17 @@ export default function SubmitDocument() {
                       {doc.status === "missing" && <Tag kind="danger">Missing</Tag>}
                       {doc.status === "rejected" && doc.reviewNote && (
                         <p className="mt-1 mb-0 text-[0.78rem] text-ink-faint">HR note: {doc.reviewNote}</p>
+                      )}
+                      {doc.status === "rejected" && doc.pendingFileUrl && (
+                        <a
+                          href={doc.pendingFileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 text-navy font-semibold text-[0.82rem] no-underline hover:underline"
+                        >
+                          <Eye size={14} />
+                          View rejected file
+                        </a>
                       )}
                     </Td>
                   </tr>

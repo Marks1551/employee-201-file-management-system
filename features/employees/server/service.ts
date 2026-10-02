@@ -486,7 +486,7 @@ export async function markDocumentUploaded(
 ): Promise<string | null> {
   const stamp = nowStamp();
   await execute(
-    "UPDATE documents SET status = ?, uploaded_at = ?, file_url = ?, file_name = ?, file_type = ? WHERE id = ? AND employee_id = ?",
+    "UPDATE documents SET status = ?, uploaded_at = ?, file_url = ?, file_name = ?, file_type = ?, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, submitted_at = NULL WHERE id = ? AND employee_id = ?",
     ["uploaded", stamp, file?.url || null, file?.name || null, file?.type || null, docId, employeeId],
   );
   const rows = await query<DocumentRow>("SELECT name FROM documents WHERE id = ?", [docId]);
@@ -502,7 +502,7 @@ export async function clearDocumentFile(employeeId: string, docId: string): Prom
     employeeId,
   ]);
   await execute(
-    "UPDATE documents SET status = ?, uploaded_at = NULL, file_url = NULL, file_name = NULL, file_type = NULL WHERE id = ? AND employee_id = ?",
+    "UPDATE documents SET status = ?, uploaded_at = NULL, file_url = NULL, file_name = NULL, file_type = NULL, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, submitted_at = NULL WHERE id = ? AND employee_id = ?",
     ["missing", docId, employeeId],
   );
   await syncNotificationsForEmployee(employeeId);
@@ -565,18 +565,18 @@ export async function approveEmployeeDocument(
   return doc.name;
 }
 
-/** HR rejects a pending submission: the submitted file is discarded (the
- *  caller should also delete it from disk — see deleteDocumentFile) and the
- *  document reverts to whatever it was before (uploaded, if a prior
- *  approved file exists, otherwise missing), tagged `rejected` with a note
- *  so faculty knows to resubmit. Returns { name, previousFileUrl } for the
- *  caller, or null if no pending submission was found. */
+/** HR rejects a pending submission. The submitted file is KEPT (stored under
+ *  pending_file_*) so HR can still open the rejected document later; it is
+ *  never applied to the file of record (file_url). The document is tagged
+ *  `rejected` with an optional note so faculty knows to resubmit. The kept
+ *  file is replaced when faculty resubmit, or cleared when HR uploads/removes
+ *  the document. Returns { name }, or null if no pending submission was found. */
 export async function rejectEmployeeDocument(
   employeeId: string,
   docId: string,
   reviewerName: string,
   note?: string | null,
-): Promise<{ name: string; previousPendingFileUrl: string | null } | null> {
+): Promise<{ name: string } | null> {
   const rows = await query<DocumentRow>("SELECT * FROM documents WHERE id = ? AND employee_id = ?", [
     docId,
     employeeId,
@@ -585,12 +585,11 @@ export async function rejectEmployeeDocument(
   if (!doc || doc.status !== "pending") return null;
   const stamp = nowStamp();
   await execute(
-    `UPDATE documents SET status = 'rejected', pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL,
-       submitted_at = NULL, reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ?`,
+    `UPDATE documents SET status = 'rejected', reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ?`,
     [reviewerName, stamp, note || null, docId],
   );
   await syncNotificationsForEmployee(employeeId);
-  return { name: doc.name, previousPendingFileUrl: doc.pending_file_url };
+  return { name: doc.name };
 }
 
 // ---------- training ----------
