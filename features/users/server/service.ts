@@ -42,10 +42,32 @@ async function getUserWithHash(id: string): Promise<UserRow | null> {
   return rows[0] || null;
 }
 
+/** Finds the account for a login identifier: a username, an email, or the employee
+ *  number of the employee the account is linked to (faculty accounts). Username and
+ *  email are tried first. Digits-only input also matches without leading zeros, so
+ *  "142" finds employee #0142. */
 export async function findUserByIdentifier(identifier: string): Promise<UserRow | null> {
   const id = identifier.trim().toLowerCase();
-  const rows = await query<UserRow>("SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?", [id, id]);
-  return rows[0] || null;
+  if (!id) return null;
+
+  const direct = await query<UserRow>("SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?", [id, id]);
+  if (direct[0]) return direct[0];
+
+  const exact = await query<UserRow>(
+    "SELECT u.* FROM users u JOIN employees e ON e.id = u.employee_id WHERE LOWER(e.employee_number) = ? LIMIT 1",
+    [id],
+  );
+  if (exact[0]) return exact[0];
+
+  if (/^\d+$/.test(id)) {
+    const stripped = id.replace(/^0+/, "") || "0";
+    const loose = await query<UserRow>(
+      "SELECT u.* FROM users u JOIN employees e ON e.id = u.employee_id WHERE TRIM(LEADING '0' FROM e.employee_number) = ? LIMIT 1",
+      [stripped],
+    );
+    if (loose[0]) return loose[0];
+  }
+  return null;
 }
 
 export async function verifyPassword(userRow: UserRow, plainPassword: string): Promise<boolean> {

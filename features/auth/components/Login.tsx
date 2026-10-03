@@ -1,37 +1,19 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, Users, GraduationCap, Fingerprint, Loader2, type LucideIcon } from "lucide-react";
-import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
+import { Shield, Users, GraduationCap, Eye, EyeOff, type LucideIcon } from "lucide-react";
 import { useApp, roleHome } from "@/shared/context/AppContext";
 import { isProduction } from "@/shared/lib/env";
 import type { Role } from "@/shared/types";
 
 export default function Login() {
-  const { login, loginWithFingerprint, loginAsDemo } = useApp();
+  const { login, loginAsDemo } = useApp();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [fingerprintSupported, setFingerprintSupported] = useState(false);
-  const [scanning, setScanning] = useState(false);
-
-  useEffect(() => {
-    setFingerprintSupported(browserSupportsWebAuthn());
-  }, []);
-
-  async function handleFingerprint() {
-    setError("");
-    setScanning(true);
-    const result = await loginWithFingerprint();
-    setScanning(false);
-    if (!result.ok) {
-      if (!result.cancelled) setError(result.error);
-      return;
-    }
-    router.push(roleHome(result.user.role));
-  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -82,7 +64,7 @@ export default function Login() {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. jvillareal"
+              placeholder="e.g. jvillareal or 0142"
               className="w-full min-h-[48px] px-3.5 py-2.5 border-[1.5px] border-border-strong rounded-lg text-base focus:border-navy focus:outline-none"
               autoComplete="username"
             />
@@ -91,15 +73,27 @@ export default function Login() {
             <label htmlFor="password" className="block font-semibold text-[0.92rem] text-ink mb-1.5">
               Password
             </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              className="w-full min-h-[48px] px-3.5 py-2.5 border-[1.5px] border-border-strong rounded-lg text-base focus:border-navy focus:outline-none"
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full min-h-[48px] pl-3.5 pr-12 py-2.5 border-[1.5px] border-border-strong rounded-lg text-base focus:border-navy focus:outline-none"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                title={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-lg bg-transparent border-none cursor-pointer text-ink-muted hover:text-navy"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -115,25 +109,6 @@ export default function Login() {
             Sign In
           </button>
         </form>
-
-        {fingerprintSupported && (
-          <>
-            <div className="flex items-center gap-2.5 my-4 text-ink-faint text-[0.78rem] uppercase tracking-wide">
-              <span className="flex-1 h-px bg-border" />
-              or
-              <span className="flex-1 h-px bg-border" />
-            </div>
-            <button
-              type="button"
-              onClick={handleFingerprint}
-              disabled={scanning}
-              className="w-full inline-flex items-center justify-center gap-2 min-h-[46px] px-5 rounded-lg font-semibold text-[0.95rem] border-[1.5px] border-navy text-navy bg-white hover:bg-navy-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {scanning ? <Loader2 size={18} className="animate-spin" /> : <Fingerprint size={18} />}
-              {scanning ? "Waiting for fingerprint…" : "Sign in with fingerprint"}
-            </button>
-          </>
-        )}
 
         <p className="text-[0.86rem] text-center mt-3 mb-0">
           <a href="/forgot-password" className="text-navy font-semibold no-underline hover:underline">
