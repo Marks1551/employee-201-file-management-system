@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { Menu, LogOut } from 'lucide-react';
-import { navConfig, type NavLinkItem } from './navConfig';
-import { useApp, roleLabel } from '@/shared/context/AppContext';
-import type { Role } from '@/shared/types';
+import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, LogOut, Bell } from "lucide-react";
+import { navConfig, type NavLinkItem } from "./navConfig";
+import NotificationDrawer from "./NotificationDrawer";
+import { useApp, roleLabel } from "@/shared/context/AppContext";
+import type { Role } from "@/shared/types";
 
 interface LayoutProps {
   role: Role;
@@ -17,35 +18,41 @@ interface LayoutProps {
 
 export default function Layout({ role, eyebrow, title, children }: LayoutProps) {
   const [navOpen, setNavOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const { currentUser, logout, notifications } = useApp();
   const router = useRouter();
   const pathname = usePathname();
 
   const items = navConfig[role];
 
-  const unreadNotificationsCount = notifications.filter((n) => n.status === 'unread').length;
+  // Close the notifications panel whenever the page changes.
+  useEffect(() => {
+    setNotifOpen(false);
+  }, [pathname]);
+
+  const unreadNotificationsCount = notifications.filter((n) => n.status === "unread").length;
 
   function isNavActive(item: NavLinkItem) {
     if (item.end) return pathname === item.to;
-    return pathname === item.to || pathname.startsWith(item.to + '/');
+    return pathname === item.to || pathname.startsWith(item.to + "/");
   }
 
   function handleLogout() {
     logout();
-    router.push('/');
+    router.push("/");
   }
 
   return (
     <div className="flex min-h-screen">
       {/* Mobile scrim */}
       <div
-        className={`fixed inset-0 bg-navy-dark/45 z-[35] transition-opacity md:hidden ${navOpen ? 'block' : 'hidden'}`}
+        className={`fixed inset-0 bg-navy-dark/45 z-[35] transition-opacity md:hidden ${navOpen ? "block" : "hidden"}`}
         onClick={() => setNavOpen(false)}
       />
 
       <aside
         className={`w-[248px] flex-shrink-0 bg-navy-dark text-[#EDF1F6] flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-transform duration-200 ${
-          navOpen ? 'translate-x-0 shadow-pop' : '-translate-x-full md:translate-x-0'
+          navOpen ? "translate-x-0 shadow-pop" : "-translate-x-full md:translate-x-0"
         }`}
       >
         <div className="flex items-center gap-3 px-[18px] py-5 border-b border-white/10">
@@ -58,7 +65,7 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
 
         <nav className="flex-1 px-2.5 py-3.5 overflow-y-auto scrollbar-thin">
           {items.map((item, i) =>
-            'section' in item && item.section ? (
+            "section" in item && item.section ? (
               <div key={i} className="text-[0.72rem] uppercase tracking-wider text-[#7C899B] px-3.5 pt-3.5 pb-1.5">
                 {item.section}
               </div>
@@ -71,12 +78,14 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
                     href={navItem.to}
                     onClick={() => setNavOpen(false)}
                     className={`flex items-center gap-3 px-3.5 py-3 rounded-lg text-[0.96rem] font-medium no-underline mb-1 transition-colors ${
-                      isNavActive(navItem) ? 'bg-gold text-navy-dark font-semibold' : 'text-[#CBD5E1] hover:bg-white/10 hover:text-white'
+                      isNavActive(navItem)
+                        ? "bg-gold text-navy-dark font-semibold"
+                        : "text-[#CBD5E1] hover:bg-white/10 hover:text-white"
                     }`}
                   >
                     <navItem.icon size={20} className="flex-shrink-0" />
                     <span className="flex-1">{navItem.label}</span>
-                    {navItem.badgeKey === 'notifications' && unreadNotificationsCount > 0 && (
+                    {navItem.badgeKey === "notifications" && unreadNotificationsCount > 0 && (
                       <span className="bg-danger-bg text-danger-text border border-danger-border rounded-full text-[0.72rem] font-bold px-2 py-0.5">
                         {unreadNotificationsCount}
                       </span>
@@ -84,7 +93,7 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
                   </Link>
                 );
               })()
-            )
+            ),
           )}
         </nav>
 
@@ -118,16 +127,42 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
           <div className="flex items-center gap-2.5">
             <div className="leading-tight hidden sm:block text-right">
               <strong className="block text-[0.92rem] text-ink">{currentUser?.name}</strong>
-              <span className="block text-[0.78rem] text-ink-faint">{currentUser ? roleLabel(currentUser.role) : ''}</span>
+              <span className="block text-[0.78rem] text-ink-faint">
+                {currentUser ? roleLabel(currentUser.role) : ""}
+              </span>
             </div>
             <div className="w-10 h-10 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-[0.95rem] flex-shrink-0">
               {currentUser?.initials}
             </div>
+            {role === "hr" && (
+              <button
+                type="button"
+                onClick={() => setNotifOpen((o) => !o)}
+                aria-haspopup="dialog"
+                aria-expanded={notifOpen}
+                aria-label={
+                  unreadNotificationsCount > 0 ? `Notifications, ${unreadNotificationsCount} unread` : "Notifications"
+                }
+                title="Notifications"
+                className={`relative ml-1 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors border-none cursor-pointer ${
+                  notifOpen ? "bg-gold text-navy-dark" : "bg-navy-100 text-navy hover:opacity-80"
+                }`}
+              >
+                <Bell size={20} />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 flex items-center justify-center rounded-full bg-danger-text text-white text-[0.68rem] font-bold leading-none border-2 border-white">
+                    {unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </header>
 
         <div className="p-4 md:p-7 max-w-[1180px] w-full">{children}</div>
       </div>
+
+      {role === "hr" && <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />}
     </div>
   );
 }
