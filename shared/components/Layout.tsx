@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu, LogOut, Bell } from "lucide-react";
 import { navConfig, type NavLinkItem } from "./navConfig";
 import NotificationDrawer from "./NotificationDrawer";
+import { useChatUnread } from "@/features/chat/useChatUnread";
 import { useApp, roleLabel } from "@/shared/context/AppContext";
 import type { Role } from "@/shared/types";
 
@@ -31,6 +32,7 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
   }, [pathname]);
 
   const unreadNotificationsCount = notifications.filter((n) => n.status === "unread").length;
+  const unreadChatCount = useChatUnread(role === "hr" || role === "faculty");
 
   function isNavActive(item: NavLinkItem) {
     if (item.end) return pathname === item.to;
@@ -88,6 +90,11 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
                     {navItem.badgeKey === "notifications" && unreadNotificationsCount > 0 && (
                       <span className="bg-danger-bg text-danger-text border border-danger-border rounded-full text-[0.72rem] font-bold px-2 py-0.5">
                         {unreadNotificationsCount}
+                      </span>
+                    )}
+                    {navItem.badgeKey === "chat" && unreadChatCount > 0 && (
+                      <span className="bg-danger-bg text-danger-text border border-danger-border rounded-full text-[0.72rem] font-bold px-2 py-0.5">
+                        {unreadChatCount}
                       </span>
                     )}
                   </Link>

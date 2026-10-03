@@ -149,6 +149,8 @@ export interface AppContextValue {
 
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<ActionResult>;
+  clearAllNotifications: () => Promise<ActionResult>;
 
   backupNow: () => Promise<string>;
 
@@ -810,6 +812,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const deleteNotification = useCallback(async (id: string): Promise<ActionResult> => {
+    try {
+      const { notifications: fresh } = await api<{ notifications: Notification[] }>(`/api/notifications/${id}`, {
+        method: "DELETE",
+      });
+      setNotifications(fresh);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: errorMessage(err) };
+    }
+  }, []);
+
+  const clearAllNotifications = useCallback(async (): Promise<ActionResult> => {
+    try {
+      const { notifications: fresh } = await api<{ notifications: Notification[] }>("/api/notifications", {
+        method: "DELETE",
+      });
+      setNotifications(fresh);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: errorMessage(err) };
+    }
+  }, []);
+
   // ---------- audit log ----------
   const logAction = useCallback(async (who: string, role: string, action: string) => {
     try {
@@ -884,6 +910,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deletePdsReference,
     markNotificationRead,
     markAllNotificationsRead,
+    deleteNotification,
+    clearAllNotifications,
     backupNow,
     logAction,
   };

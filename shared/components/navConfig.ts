@@ -11,6 +11,7 @@ import {
   FileText,
   UploadCloud,
   Fingerprint,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/shared/types";
@@ -20,7 +21,7 @@ export interface NavLinkItem {
   label: string;
   icon: LucideIcon;
   end?: boolean;
-  badgeKey?: "notifications";
+  badgeKey?: "notifications" | "chat";
   section?: undefined;
 }
 
@@ -47,6 +48,7 @@ export const navConfig: Record<Role, NavItem[]> = {
     { to: "/hr/employees", label: "Employee Records", icon: Users },
     { to: "/hr/documents", label: "Document Management", icon: FolderOpen },
     { to: "/hr/search", label: "Search Records", icon: Search },
+    { to: "/hr/chat", label: "Chat", icon: MessageSquare, badgeKey: "chat" },
     { to: "/hr/reports", label: "Generate Reports", icon: FileBarChart },
     { section: "Account" },
     { to: "/hr/change-password", label: "Change Password", icon: KeyRound },
@@ -56,6 +58,7 @@ export const navConfig: Record<Role, NavItem[]> = {
     { to: "/faculty", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/faculty/201file", label: "My 201 File", icon: FileText },
     { to: "/faculty/submit", label: "Submit a Document", icon: UploadCloud },
+    { to: "/faculty/chat", label: "Chat with HR", icon: MessageSquare, badgeKey: "chat" },
     { section: "Account" },
     { to: "/faculty/change-password", label: "Change Password", icon: KeyRound },
     { to: "/faculty/fingerprint", label: "Fingerprint Login", icon: Fingerprint },

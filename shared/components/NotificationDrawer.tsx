@@ -2,8 +2,9 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertTriangle, Clock, CheckCheck, X, BellOff } from "lucide-react";
+import { AlertTriangle, Clock, CheckCheck, X, BellOff, Trash2 } from "lucide-react";
 import { useApp } from "@/shared/context/AppContext";
+import { useToast } from "@/shared/context/ToastContext";
 
 interface NotificationDrawerProps {
   open: boolean;
@@ -12,8 +13,23 @@ interface NotificationDrawerProps {
 
 /** Slide-in side panel (from the right) listing the HR notifications. */
 export default function NotificationDrawer({ open, onClose }: NotificationDrawerProps) {
-  const { notifications, markNotificationRead, markAllNotificationsRead } = useApp();
+  const { notifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } =
+    useApp();
+  const showToast = useToast();
   const unreadCount = notifications.filter((n) => n.status === "unread").length;
+
+  async function handleDelete(id: string) {
+    const result = await deleteNotification(id);
+    if (result.ok) showToast("Notification deleted.");
+    else showToast("Could not delete the notification. Please try again.", "error");
+  }
+
+  async function handleDeleteAll() {
+    if (!window.confirm("Delete all notifications?")) return;
+    const result = await clearAllNotifications();
+    if (result.ok) showToast("All notifications deleted.");
+    else showToast("Could not delete the notifications. Please try again.", "error");
+  }
 
   // Close with Escape while open.
   useEffect(() => {
@@ -59,15 +75,27 @@ export default function NotificationDrawer({ open, onClose }: NotificationDrawer
           </button>
         </div>
 
-        {unreadCount > 0 && (
-          <div className="px-5 py-3 border-b border-border flex-shrink-0">
+        {notifications.length > 0 && (
+          <div className="px-5 py-3 border-b border-border flex-shrink-0 flex items-center justify-between gap-3 flex-wrap">
+            {unreadCount > 0 ? (
+              <button
+                type="button"
+                onClick={markAllNotificationsRead}
+                className="inline-flex items-center gap-1.5 text-navy font-semibold text-[0.86rem] bg-transparent border-none cursor-pointer p-0 hover:underline"
+              >
+                <CheckCheck size={16} />
+                Mark all as read
+              </button>
+            ) : (
+              <span />
+            )}
             <button
               type="button"
-              onClick={markAllNotificationsRead}
-              className="inline-flex items-center gap-1.5 text-navy font-semibold text-[0.86rem] bg-transparent border-none cursor-pointer p-0 hover:underline"
+              onClick={handleDeleteAll}
+              className="inline-flex items-center gap-1.5 text-danger-text font-semibold text-[0.86rem] bg-transparent border-none cursor-pointer p-0 hover:underline"
             >
-              <CheckCheck size={16} />
-              Mark all as read
+              <Trash2 size={15} />
+              Delete all
             </button>
           </div>
         )}
@@ -84,14 +112,14 @@ export default function NotificationDrawer({ open, onClose }: NotificationDrawer
                 const isMissing = n.kind === "missing_document";
                 const unread = n.status === "unread";
                 return (
-                  <li key={n.id}>
+                  <li key={n.id} className="relative">
                     <Link
                       href={`/hr/employees/${n.employeeId}`}
                       onClick={() => {
                         if (unread) markNotificationRead(n.id);
                         onClose();
                       }}
-                      className={`flex gap-3 items-start p-3 rounded-xl border border-border no-underline text-ink hover:border-gold hover:shadow-pop transition-all ${
+                      className={`flex gap-3 items-start p-3 pr-11 rounded-xl border border-border no-underline text-ink hover:border-gold hover:shadow-pop transition-all ${
                         unread ? "bg-navy-100/50" : "opacity-60"
                       }`}
                     >
@@ -113,6 +141,15 @@ export default function NotificationDrawer({ open, onClose }: NotificationDrawer
                         {n.when && <span className="block mt-1 text-[0.74rem] text-ink-faint">{n.when}</span>}
                       </div>
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(n.id)}
+                      aria-label={`Delete notification: ${n.title}`}
+                      title="Delete"
+                      className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center bg-transparent border-none cursor-pointer text-ink-faint hover:bg-danger-bg hover:text-danger-text"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </li>
                 );
               })}

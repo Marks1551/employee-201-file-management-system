@@ -284,6 +284,23 @@ CREATE TABLE IF NOT EXISTS notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------
+-- messages: direct chat between HR Personnel and Faculty (one-to-one only;
+-- the API refuses any pairing that isn't HR <-> Faculty)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS messages (
+  id            VARCHAR(64) PRIMARY KEY,
+  sender_id     VARCHAR(64) NOT NULL,
+  recipient_id  VARCHAR(64) NOT NULL,
+  body          VARCHAR(2000) NOT NULL,
+  read_at       TIMESTAMP NULL,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_messages_pair (sender_id, recipient_id, created_at),
+  INDEX idx_messages_recipient_unread (recipient_id, read_at),
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------
 -- app_meta: small key/value store (currently just last backup timestamp)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS app_meta (
