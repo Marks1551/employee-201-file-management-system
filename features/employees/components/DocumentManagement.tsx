@@ -6,6 +6,7 @@ import { Search, Eye } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { inputCls, Tag, Button, Field } from "@/shared/components/ui";
 import { TableWrap, Th, Td, CellName, CellSub } from "@/shared/components/Table";
+import TabMenu from "@/shared/components/TabMenu";
 import Pagination from "@/shared/components/Pagination";
 import Modal from "@/shared/components/Modal";
 import { useApp } from "@/shared/context/AppContext";
@@ -160,7 +161,17 @@ export default function DocumentManagement() {
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap mb-4" role="tablist" aria-label="Filter documents by status">
+      {/* Mobile: a menu that lists the status subpages */}
+      <div className="md:hidden mb-4">
+        <TabMenu
+          options={statusTabs.map((t) => ({ key: t.key, label: t.label, badge: tabCounts[t.key] }))}
+          value={statusFilter}
+          onChange={changeTab}
+          ariaLabel="Filter documents by status"
+        />
+      </div>
+
+      <div className="hidden md:flex gap-2 flex-wrap mb-4" role="tablist" aria-label="Filter documents by status">
         {statusTabs.map((t) => {
           const active = statusFilter === t.key;
           return (
