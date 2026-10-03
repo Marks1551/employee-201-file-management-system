@@ -232,6 +232,28 @@ CREATE TABLE IF NOT EXISTS account_setup_tokens (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------
+-- webauthn_credentials: fingerprint (passkey) logins. The fingerprint itself
+-- never leaves the user's device — the device's sensor unlocks a private key
+-- and we only store the matching PUBLIC key, so a leaked database can't be
+-- used to impersonate anyone. One user can register several devices.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id             VARCHAR(64)  PRIMARY KEY,
+  user_id        VARCHAR(64)  NOT NULL,
+  -- ASCII + binary collation: IDs are case-sensitive base64url, and 512 bytes keeps the
+  -- UNIQUE index under the 767-byte key limit of older MySQL/MariaDB (XAMPP) setups.
+  credential_id  VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  public_key     BLOB         NOT NULL,
+  counter        BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  transports     VARCHAR(100),
+  device_label   VARCHAR(100) NOT NULL,
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_used_at   TIMESTAMP NULL,
+  INDEX idx_webauthn_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------
 -- audit_log: activity feed (admin dashboard / audit log page)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (

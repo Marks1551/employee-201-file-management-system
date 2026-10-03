@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, type ReactNode } from "react";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { roleLabel, roleHome, nowStamp } from "@/shared/lib/roles";
 import type {
   Employee,
@@ -54,12 +55,12 @@ export interface AppContextValue {
   notifications: Notification[];
   meta: AppMeta;
   ready: boolean;
-  /** true while the first load / post-login data fetch is in progress */
-  loading: boolean;
   currentUser: User | null;
   currentEmployee: Employee | null;
 
   login: (identifier: string, password: string) => Promise<{ ok: true; user: User } | { ok: false; error: string }>;
+  /** Signs in with a registered fingerprint alone — no username or password. */
+  loginWithFingerprint: () => Promise<{ ok: true; user: User } | { ok: false; error: string; cancelled?: boolean }>;
   loginAsDemo: (role: Role) => Promise<User | null>;
   logout: () => Promise<void>;
 
@@ -91,7 +92,6 @@ export interface AppContextValue {
   setUserStatus: (id: string, status: string) => Promise<void>;
   setUserRole: (id: string, role: Role) => Promise<void>;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<ActionResult>;
-  changeUsername: (newUsername: string, currentPassword: string) => Promise<ActionResult>;
 
   addEmployee: (data: EmployeeInput) => Promise<string | null>;
   updateEmployee: (id: string, patch: Partial<EmployeeInput>) => Promise<void>;
@@ -162,7 +162,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [meta, setMeta] = useState<AppMeta>({ lastBackup: "" });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const refreshAll = useCallback(async () => {
     const [empRes, usersRes, auditRes, metaRes, notifRes] = await Promise.all([
@@ -179,32 +178,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(notifRes.notifications);
   }, []);
 
-  // Used for the initial load and right after sign-in: flips `loading` so the UI
-  // shows a spinner instead of empty/stale data. (Plain refreshAll — used after
-  // every save — stays silent so edits don't flash a full-page loader.)
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      await refreshAll();
-    } finally {
-      setLoading(false);
-    }
-  }, [refreshAll]);
-
   // On first load, check for an existing session (httpOnly cookie) and hydrate data.
   useEffect(() => {
     (async () => {
       try {
         const { user } = await api<{ user: User | null }>("/api/auth/me");
         setCurrentUser(user);
-        if (user) await loadAll();
+        if (user) await refreshAll();
       } catch {
         // not signed in / server unreachable — leave defaults
       } finally {
         setReady(true);
       }
     })();
-  }, [loadAll]);
+  }, [refreshAll]);
 
   const currentEmployee = useMemo(
     () => (currentUser?.employeeId ? employees.find((e) => e.id === currentUser.employeeId) || null : null),
@@ -220,27 +207,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
           body: { identifier, password },
         });
         setCurrentUser(user);
-        await loadAll();
+        await refreshAll();
         return { ok: true as const, user };
       } catch (err) {
         return { ok: false as const, error: errorMessage(err) };
       }
     },
-    [loadAll],
+    [refreshAll],
   );
+
+  const loginWithFingerprint = useCallback(async () => {
+    try {
+      const options = await api<Parameters<typeof startAuthentication>[0]["optionsJSON"]>(
+        "/api/auth/fingerprint/login/options",
+        {
+          method: "POST",
+        },
+      );
+      const response = await startAuthentication({ optionsJSON: options });
+      const { user } = await api<{ user: User }>("/api/auth/fingerprint/login/verify", {
+        method: "POST",
+        body: { response },
+      });
+      setCurrentUser(user);
+      await refreshAll();
+      return { ok: true as const, user };
+    } catch (err) {
+      // The person closed/cancelled the fingerprint prompt — not an error worth shouting about.
+      if (err instanceof Error && (err.name === "NotAllowedError" || err.name === "AbortError")) {
+        return { ok: false as const, error: "Fingerprint sign-in was cancelled.", cancelled: true };
+      }
+      return { ok: false as const, error: errorMessage(err) };
+    }
+  }, [refreshAll]);
 
   const loginAsDemo = useCallback(
     async (role: Role) => {
       try {
         const { user } = await api<{ user: User }>("/api/auth/demo", { method: "POST", body: { role } });
         setCurrentUser(user);
-        await loadAll();
+        await refreshAll();
         return user;
       } catch {
         return null;
       }
     },
-    [loadAll],
+    [refreshAll],
   );
 
   const logout = useCallback(async () => {
@@ -265,13 +277,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           body: { token, password },
         });
         setCurrentUser(user);
-        await loadAll();
+        await refreshAll();
         return { ok: true as const, user };
       } catch (err) {
         return { ok: false as const, error: errorMessage(err) };
       }
     },
-    [loadAll],
+    [refreshAll],
   );
 
   const requestPasswordReset = useCallback(async (identifier: string): Promise<ActionResult> => {
@@ -373,22 +385,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     [],
-  );
-
-  /** Changes the signed-in user's own username (current password verified server-side). */
-  const changeUsername = useCallback(
-    async (newUsername: string, currentPassword: string): Promise<ActionResult> => {
-      try {
-        await api("/api/auth/change-username", { method: "POST", body: { newUsername, currentPassword } });
-        const { user } = await api<{ user: User | null }>("/api/auth/me");
-        setCurrentUser(user);
-        await refreshAll();
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, error: errorMessage(err) };
-      }
-    },
-    [refreshAll],
   );
 
   // ---------- employees ----------
@@ -800,10 +796,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     notifications,
     meta,
     ready,
-    loading,
     currentUser,
     currentEmployee,
     login,
+    loginWithFingerprint,
     loginAsDemo,
     logout,
     completeAccountSetup,
@@ -815,7 +811,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserStatus,
     setUserRole,
     changePassword,
-    changeUsername,
     addEmployee,
     updateEmployee,
     setEmployeeStatus,

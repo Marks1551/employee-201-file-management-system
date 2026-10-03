@@ -56,3 +56,19 @@ export async function getSessionUserId(): Promise<string | null> {
   const payload = verifySessionToken(token);
   return payload?.sub || null;
 }
+
+// ---------- short-lived signed tokens (used for WebAuthn challenges) ----------
+
+/** Signs a small payload that expires quickly. Used to carry a WebAuthn
+ *  challenge between the "options" and "verify" requests without a DB table. */
+export function signShortLivedToken(payload: Record<string, unknown>, ttlSeconds: number): string {
+  return jwt.sign(payload, SECRET, { expiresIn: ttlSeconds });
+}
+
+export function verifyShortLivedToken<T extends Record<string, unknown>>(token: string): (T & jwt.JwtPayload) | null {
+  try {
+    return jwt.verify(token, SECRET) as T & jwt.JwtPayload;
+  } catch {
+    return null;
+  }
+}
