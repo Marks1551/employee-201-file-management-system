@@ -1,13 +1,13 @@
-import { randomUUID, randomBytes } from 'crypto';
-import bcrypt from 'bcryptjs';
-import { query, execute } from '@/shared/server/db';
-import { fmt, initials } from '@/shared/server/format';
-import { createSetupToken } from '@/features/auth/server/setup-tokens';
-import { appUrl, sendAccountSetupEmail, sendPasswordResetEmail } from '@/features/mailer/server/service';
-import { findEmployeeByNumber } from '@/features/employees/server/service';
-import type { User, UserInput, UserRow, Patch, Role } from '@/shared/types';
+import { randomUUID, randomBytes } from "crypto";
+import bcrypt from "bcryptjs";
+import { query, execute } from "@/shared/server/db";
+import { fmt, initials } from "@/shared/server/format";
+import { createSetupToken } from "@/features/auth/server/setup-tokens";
+import { appUrl, sendAccountSetupEmail, sendPasswordResetEmail } from "@/features/mailer/server/service";
+import { findEmployeeByNumber } from "@/features/employees/server/service";
+import type { User, UserInput, UserRow, Patch, Role } from "@/shared/types";
 
-const DEFAULT_PASSWORD = 'lssti123';
+const DEFAULT_PASSWORD = "lssti123";
 const SETUP_TOKEN_TTL_HOURS = 48;
 const RESET_TOKEN_TTL_HOURS = 2;
 
@@ -21,30 +21,30 @@ function mapUserRow(row: UserRow): User {
     role: row.role,
     status: row.status,
     employeeId: row.employee_id,
-    lastActive: fmt(row.last_active) || 'Never',
+    lastActive: fmt(row.last_active) || "Never",
     needsPasswordSetup: !!row.needs_password_setup,
   };
 }
 
 export async function listUsers(): Promise<User[]> {
-  const rows = await query<UserRow>('SELECT * FROM users ORDER BY name ASC');
+  const rows = await query<UserRow>("SELECT * FROM users ORDER BY name ASC");
   return rows.map(mapUserRow);
 }
 
 export async function getUserPublic(id: string): Promise<User | null> {
-  const rows = await query<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
+  const rows = await query<UserRow>("SELECT * FROM users WHERE id = ?", [id]);
   return rows.length ? mapUserRow(rows[0]) : null;
 }
 
 /** Internal only — includes the password hash. Never send this to the client. */
 async function getUserWithHash(id: string): Promise<UserRow | null> {
-  const rows = await query<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
+  const rows = await query<UserRow>("SELECT * FROM users WHERE id = ?", [id]);
   return rows[0] || null;
 }
 
 export async function findUserByIdentifier(identifier: string): Promise<UserRow | null> {
   const id = identifier.trim().toLowerCase();
-  const rows = await query<UserRow>('SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?', [id, id]);
+  const rows = await query<UserRow>("SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?", [id, id]);
   return rows[0] || null;
 }
 
@@ -58,12 +58,30 @@ export async function createUser(data: UserInput): Promise<string> {
   await execute(
     `INSERT INTO users (id, name, initials, username, email, password_hash, role, status, employee_id, last_active)
      VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [id, data.name, initials(data.name), data.username, data.email, hash, data.role, 'active', data.employeeId || null, null]
+    [
+      id,
+      data.name,
+      initials(data.name),
+      data.username,
+      data.email,
+      hash,
+      data.role,
+      "active",
+      data.employeeId || null,
+      null,
+    ],
   );
   return id;
 }
 
-const USER_COLUMNS: Record<string, string> = { name: 'name', email: 'email', username: 'username', role: 'role', status: 'status', employeeId: 'employee_id' };
+const USER_COLUMNS: Record<string, string> = {
+  name: "name",
+  email: "email",
+  username: "username",
+  role: "role",
+  status: "status",
+  employeeId: "employee_id",
+};
 
 export async function updateUser(id: string, patch: Patch<UserInput> & { status?: string }): Promise<void> {
   const sets: string[] = [];
@@ -75,30 +93,37 @@ export async function updateUser(id: string, patch: Patch<UserInput> & { status?
     }
   }
   if (patch.name) {
-    sets.push('initials = ?');
+    sets.push("initials = ?");
     params.push(initials(patch.name));
   }
   if (!sets.length) return;
   params.push(id);
-  await execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
+  await execute(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, params);
 }
 
 export async function touchLastActive(id: string): Promise<void> {
-  await execute('UPDATE users SET last_active = NOW() WHERE id = ?', [id]);
+  await execute("UPDATE users SET last_active = NOW() WHERE id = ?", [id]);
 }
 
 /** Admin-facing account creation: given just an employee number, looks up
  *  the matching employee record, auto-fills their name/email, creates the
  *  account with the chosen role, and emails them a setup link — same
  *  pending-setup flow as automatic provisioning. */
-export async function createAccountForEmployeeNumber(employeeNumber: string, role: Role): Promise<{ ok: true; userId: string; username: string; emailSent: boolean } | { ok: false; error: string }> {
+export async function createAccountForEmployeeNumber(
+  employeeNumber: string,
+  role: Role,
+): Promise<{ ok: true; userId: string; username: string; emailSent: boolean } | { ok: false; error: string }> {
   const employee = await findEmployeeByNumber(employeeNumber);
   if (!employee) return { ok: false, error: `No employee found with employee number "${employeeNumber}".` };
-  if (!employee.email) return { ok: false, error: `${employee.displayName} has no email address on file. Add one to their 201 file first.` };
+  if (!employee.email)
+    return {
+      ok: false,
+      error: `${employee.displayName} has no email address on file. Add one to their 201 file first.`,
+    };
 
   const [existingByEmployee, existingByEmail] = await Promise.all([
-    query<{ id: string }>('SELECT id FROM users WHERE employee_id = ?', [employee.id]),
-    query<{ id: string }>('SELECT id FROM users WHERE LOWER(email) = ?', [employee.email.toLowerCase()]),
+    query<{ id: string }>("SELECT id FROM users WHERE employee_id = ?", [employee.id]),
+    query<{ id: string }>("SELECT id FROM users WHERE LOWER(email) = ?", [employee.email.toLowerCase()]),
   ]);
   if (existingByEmployee.length || existingByEmail.length) {
     return { ok: false, error: `${employee.displayName} already has an account.` };
@@ -111,13 +136,19 @@ export async function createAccountForEmployeeNumber(employeeNumber: string, rol
  *  system-administrator staff who aren't tracked as employees in this
  *  system. Same emailed setup-link flow as the employee-number path, just
  *  without an employee_id to link to. */
-export async function createAccountDirect(params: { name: string; email: string; role: Role }): Promise<{ ok: true; userId: string; username: string; emailSent: boolean } | { ok: false; error: string }> {
+export async function createAccountDirect(params: {
+  name: string;
+  email: string;
+  role: Role;
+}): Promise<{ ok: true; userId: string; username: string; emailSent: boolean } | { ok: false; error: string }> {
   const name = params.name.trim();
   const email = params.email.trim();
-  if (!name) return { ok: false, error: 'Full name is required.' };
-  if (!email) return { ok: false, error: 'Email address is required.' };
+  if (!name) return { ok: false, error: "Full name is required." };
+  if (!email) return { ok: false, error: "Email address is required." };
 
-  const existingByEmail = await query<{ id: string }>('SELECT id FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]);
+  const existingByEmail = await query<{ id: string }>("SELECT id FROM users WHERE LOWER(email) = ?", [
+    email.toLowerCase(),
+  ]);
   if (existingByEmail.length) return { ok: false, error: `An account with the email "${email}" already exists.` };
 
   return provisionAccount({ name, email, role: params.role, employeeId: null });
@@ -126,31 +157,95 @@ export async function createAccountDirect(params: { name: string; email: string;
 /** Shared account-creation core used by both the employee-number and direct
  *  paths: generates a username, creates the row with a random unusable
  *  password, and emails a setup link. */
-async function provisionAccount(params: { name: string; email: string; role: Role; employeeId: string | null }): Promise<{ ok: true; userId: string; username: string; emailSent: boolean } | { ok: false; error: string }> {
+async function provisionAccount(params: {
+  name: string;
+  email: string;
+  role: Role;
+  employeeId: string | null;
+}): Promise<{ ok: true; userId: string; username: string; emailSent: boolean } | { ok: false; error: string }> {
   const username = await generateUniqueUsername(params.name);
-  const unusablePassword = randomBytes(24).toString('hex'); // never revealed to anyone
+  const unusablePassword = randomBytes(24).toString("hex"); // never revealed to anyone
   const userId = `user-${randomUUID()}`;
   await execute(
     `INSERT INTO users (id, name, initials, username, email, password_hash, role, status, needs_password_setup, employee_id, last_active)
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    [userId, params.name, initials(params.name), username, params.email, await bcrypt.hash(unusablePassword, 10), params.role, 'active', true, params.employeeId, null]
+    [
+      userId,
+      params.name,
+      initials(params.name),
+      username,
+      params.email,
+      await bcrypt.hash(unusablePassword, 10),
+      params.role,
+      "active",
+      true,
+      params.employeeId,
+      null,
+    ],
   );
 
-  const token = await createSetupToken(userId, 'setup', SETUP_TOKEN_TTL_HOURS);
+  const token = await createSetupToken(userId, "setup", SETUP_TOKEN_TTL_HOURS);
   const link = `${appUrl()}/account-setup?token=${token}`;
-  const emailSent = await sendAccountSetupEmail({ to: params.email, name: params.name, username, link, expiresInHours: SETUP_TOKEN_TTL_HOURS });
+  const emailSent = await sendAccountSetupEmail({
+    to: params.email,
+    name: params.name,
+    username,
+    link,
+    expiresInHours: SETUP_TOKEN_TTL_HOURS,
+  });
 
   return { ok: true, userId, username, emailSent };
 }
 
-export async function changeUserPassword(id: string, currentPassword: string, newPassword: string): Promise<{ ok: boolean; error?: string }> {
+export async function changeUserPassword(
+  id: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean; error?: string }> {
   const row = await getUserWithHash(id);
-  if (!row) return { ok: false, error: 'Account not found.' };
+  if (!row) return { ok: false, error: "Account not found." };
   const matches = await bcrypt.compare(currentPassword, row.password_hash);
-  if (!matches) return { ok: false, error: 'Your current password is incorrect.' };
+  if (!matches) return { ok: false, error: "Your current password is incorrect." };
   const hash = await bcrypt.hash(newPassword, 10);
-  await execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, id]);
+  await execute("UPDATE users SET password_hash = ? WHERE id = ?", [hash, id]);
   return { ok: true };
+}
+
+/** Lets a signed-in user rename their own login username. Requires their current
+ *  password. Usernames are 3-30 chars (letters, numbers, dot, underscore, hyphen)
+ *  and must not collide with any other account's username or email, since login
+ *  matches either one. The session is tied to the user id, so it stays valid. */
+export async function changeUsername(
+  id: string,
+  currentPassword: string,
+  newUsername: string,
+): Promise<{ ok: boolean; error?: string; username?: string }> {
+  const username = newUsername.trim();
+  if (username.length < 3 || username.length > 30) return { ok: false, error: "Username must be 3 to 30 characters." };
+  if (!/^[A-Za-z0-9._-]+$/.test(username))
+    return { ok: false, error: "Username can only use letters, numbers, dots, underscores and hyphens." };
+
+  const row = await getUserWithHash(id);
+  if (!row) return { ok: false, error: "Account not found." };
+  const matches = await bcrypt.compare(currentPassword, row.password_hash);
+  if (!matches) return { ok: false, error: "Your current password is incorrect." };
+  if (row.username === username) return { ok: false, error: "That is already your username." };
+
+  const lower = username.toLowerCase();
+  const taken = await query<UserRow>(
+    "SELECT id FROM users WHERE id <> ? AND (LOWER(username) = ? OR LOWER(email) = ?)",
+    [id, lower, lower],
+  );
+  if (taken.length) return { ok: false, error: "That username is already taken. Please choose another." };
+
+  try {
+    await execute("UPDATE users SET username = ? WHERE id = ?", [username, id]);
+  } catch (err) {
+    if ((err as { code?: string }).code === "ER_DUP_ENTRY")
+      return { ok: false, error: "That username is already taken. Please choose another." };
+    throw err;
+  }
+  return { ok: true, username };
 }
 
 // ---------- account setup / password reset (via emailed link) ----------
@@ -159,14 +254,14 @@ export async function changeUserPassword(id: string, currentPassword: string, ne
  *  the pending-setup flag. Used once a setup/reset token has been verified. */
 export async function setUserPassword(id: string, newPassword: string): Promise<void> {
   const hash = await bcrypt.hash(newPassword, 10);
-  await execute('UPDATE users SET password_hash = ?, needs_password_setup = FALSE WHERE id = ?', [hash, id]);
+  await execute("UPDATE users SET password_hash = ?, needs_password_setup = FALSE WHERE id = ?", [hash, id]);
 }
 
 /** Turns "Juan Dela Cruz" into a base username candidate like "jdelacruz". */
 function usernameBase(name: string): string {
   const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const slug = parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1]}` : parts[0] || 'user';
-  return slug.replace(/[^a-z0-9]/g, '') || 'user';
+  const slug = parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1]}` : parts[0] || "user";
+  return slug.replace(/[^a-z0-9]/g, "") || "user";
 }
 
 /** Finds a username that isn't already taken, appending 2, 3, ... as needed. */
@@ -175,7 +270,7 @@ async function generateUniqueUsername(name: string): Promise<string> {
   let candidate = base;
   let suffix = 2;
   while (true) {
-    const rows = await query<{ id: string }>('SELECT id FROM users WHERE LOWER(username) = ?', [candidate]);
+    const rows = await query<{ id: string }>("SELECT id FROM users WHERE LOWER(username) = ?", [candidate]);
     if (!rows.length) return candidate;
     candidate = `${base}${suffix}`;
     suffix += 1;
@@ -199,27 +294,45 @@ export async function provisionAccountForEmployee(params: {
 
   try {
     const [existingByEmployee, existingByEmail] = await Promise.all([
-      query<{ id: string }>('SELECT id FROM users WHERE employee_id = ?', [params.employeeId]),
-      query<{ id: string }>('SELECT id FROM users WHERE LOWER(email) = ?', [email.toLowerCase()]),
+      query<{ id: string }>("SELECT id FROM users WHERE employee_id = ?", [params.employeeId]),
+      query<{ id: string }>("SELECT id FROM users WHERE LOWER(email) = ?", [email.toLowerCase()]),
     ]);
     if (existingByEmployee.length || existingByEmail.length) return null;
 
     const username = await generateUniqueUsername(params.name);
-    const unusablePassword = randomBytes(24).toString('hex'); // never revealed to anyone
+    const unusablePassword = randomBytes(24).toString("hex"); // never revealed to anyone
     const userId = `user-${randomUUID()}`;
     await execute(
       `INSERT INTO users (id, name, initials, username, email, password_hash, role, status, needs_password_setup, employee_id, last_active)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, params.name, initials(params.name), username, email, await bcrypt.hash(unusablePassword, 10), params.role || 'faculty', 'active', true, params.employeeId, null]
+      [
+        userId,
+        params.name,
+        initials(params.name),
+        username,
+        email,
+        await bcrypt.hash(unusablePassword, 10),
+        params.role || "faculty",
+        "active",
+        true,
+        params.employeeId,
+        null,
+      ],
     );
 
-    const token = await createSetupToken(userId, 'setup', SETUP_TOKEN_TTL_HOURS);
+    const token = await createSetupToken(userId, "setup", SETUP_TOKEN_TTL_HOURS);
     const link = `${appUrl()}/account-setup?token=${token}`;
-    const emailSent = await sendAccountSetupEmail({ to: email, name: params.name, username, link, expiresInHours: SETUP_TOKEN_TTL_HOURS });
+    const emailSent = await sendAccountSetupEmail({
+      to: email,
+      name: params.name,
+      username,
+      link,
+      expiresInHours: SETUP_TOKEN_TTL_HOURS,
+    });
 
     return { userId, username, emailSent };
   } catch (err) {
-    console.error('provisionAccountForEmployee failed:', err);
+    console.error("provisionAccountForEmployee failed:", err);
     return null;
   }
 }
@@ -228,12 +341,18 @@ export async function provisionAccountForEmployee(params: {
  *  (e.g. the first link expired or the email bounced). Returns false if the
  *  account doesn't exist or setup was already completed. */
 export async function resendSetupEmail(userId: string): Promise<boolean> {
-  const rows = await query<UserRow>('SELECT * FROM users WHERE id = ?', [userId]);
+  const rows = await query<UserRow>("SELECT * FROM users WHERE id = ?", [userId]);
   const row = rows[0];
   if (!row || !row.needs_password_setup) return false;
-  const token = await createSetupToken(userId, 'setup', SETUP_TOKEN_TTL_HOURS);
+  const token = await createSetupToken(userId, "setup", SETUP_TOKEN_TTL_HOURS);
   const link = `${appUrl()}/account-setup?token=${token}`;
-  return sendAccountSetupEmail({ to: row.email, name: row.name, username: row.username, link, expiresInHours: SETUP_TOKEN_TTL_HOURS });
+  return sendAccountSetupEmail({
+    to: row.email,
+    name: row.name,
+    username: row.username,
+    link,
+    expiresInHours: SETUP_TOKEN_TTL_HOURS,
+  });
 }
 
 /** Starts a self-service password reset for username/email `identifier`.
@@ -242,8 +361,8 @@ export async function resendSetupEmail(userId: string): Promise<boolean> {
  *  registered. */
 export async function requestPasswordReset(identifier: string): Promise<void> {
   const row = await findUserByIdentifier(identifier);
-  if (!row || row.status === 'deactivated') return;
-  const token = await createSetupToken(row.id, 'reset', RESET_TOKEN_TTL_HOURS);
+  if (!row || row.status === "deactivated") return;
+  const token = await createSetupToken(row.id, "reset", RESET_TOKEN_TTL_HOURS);
   const link = `${appUrl()}/account-setup?token=${token}`;
   await sendPasswordResetEmail({ to: row.email, name: row.name, link, expiresInHours: RESET_TOKEN_TTL_HOURS });
 }

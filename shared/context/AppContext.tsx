@@ -91,6 +91,7 @@ export interface AppContextValue {
   setUserStatus: (id: string, status: string) => Promise<void>;
   setUserRole: (id: string, role: Role) => Promise<void>;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<ActionResult>;
+  changeUsername: (newUsername: string, currentPassword: string) => Promise<ActionResult>;
 
   addEmployee: (data: EmployeeInput) => Promise<string | null>;
   updateEmployee: (id: string, patch: Partial<EmployeeInput>) => Promise<void>;
@@ -372,6 +373,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     [],
+  );
+
+  /** Changes the signed-in user's own username (current password verified server-side). */
+  const changeUsername = useCallback(
+    async (newUsername: string, currentPassword: string): Promise<ActionResult> => {
+      try {
+        await api("/api/auth/change-username", { method: "POST", body: { newUsername, currentPassword } });
+        const { user } = await api<{ user: User | null }>("/api/auth/me");
+        setCurrentUser(user);
+        await refreshAll();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
+      }
+    },
+    [refreshAll],
   );
 
   // ---------- employees ----------
@@ -798,6 +815,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserStatus,
     setUserRole,
     changePassword,
+    changeUsername,
     addEmployee,
     updateEmployee,
     setEmployeeStatus,
