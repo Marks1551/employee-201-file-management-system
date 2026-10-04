@@ -50,6 +50,7 @@ export default function HREmployees() {
   const [pdsData, setPdsData] = useState<Partial<PdsDetails> | null>(null);
   const [pdsFileName, setPdsFileName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [emailError, setEmailError] = useState("");
   const [deactivateTarget, setDeactivateTarget] = useState<Employee | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
@@ -128,17 +129,28 @@ export default function HREmployees() {
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     if (!form.displayName.trim() || !form.employeeNumber.trim()) return;
+    setEmailError("");
+
+    // Quick check against the records already loaded (the server re-checks as the final say).
+    const typedEmail = form.email.trim().toLowerCase();
+    if (typedEmail && employees.some((emp) => (emp.email || "").trim().toLowerCase() === typedEmail)) {
+      setEmailError("An employee with this email address already exists.");
+      return;
+    }
+
     setSaving(true);
-    const id = await addEmployee({
+    const created = await addEmployee({
       ...form,
       fullName: form.fullName || form.displayName,
       ...(pdsData ? { pds: pdsData } : {}),
     });
-    if (!id) {
+    if (!created.ok) {
       setSaving(false);
-      showToast("Could not create the employee record. Please try again.");
+      if (/email/i.test(created.error)) setEmailError(created.error);
+      showToast(created.error || "Could not create the employee record. Please try again.", "error");
       return;
     }
+    const id = created.id;
     if (photoFile) {
       const result = await uploadEmployeePhoto(id, photoFile);
       if (!result.ok) showToast(`Employee created, but the photo failed to upload: ${result.error}`);
@@ -545,12 +557,18 @@ export default function HREmployees() {
                 onChange={(e) => setForm({ ...form, contact: e.target.value })}
               />
             </Field>
-            <Field label="Email address">
+            <Field
+              label="Email address"
+              hint={emailError ? <span className="text-danger-text">{emailError}</span> : undefined}
+            >
               <input
                 type="email"
-                className={inputCls}
+                className={`${inputCls} ${emailError ? "border-danger-text" : ""}`}
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value });
+                  setEmailError("");
+                }}
               />
             </Field>
           </div>

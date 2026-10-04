@@ -339,6 +339,28 @@ function normalizeContractDates<T extends { employmentStatus?: string | null; co
   return data;
 }
 
+/** Returns a user-facing message if `email` is already used by another employee record
+ *  or by another login account, otherwise null. Case-insensitive. Pass the employee's own
+ *  id when editing so their own record/account doesn't count as a duplicate. */
+export async function findEmailConflict(
+  email: string | null | undefined,
+  excludeEmployeeId = "",
+): Promise<string | null> {
+  const e = (email || "").trim().toLowerCase();
+  if (!e) return null;
+  const emp = await query<{ id: string }>("SELECT id FROM employees WHERE LOWER(TRIM(email)) = ? AND id <> ? LIMIT 1", [
+    e,
+    excludeEmployeeId,
+  ]);
+  if (emp[0]) return "An employee with this email address already exists.";
+  const usr = await query<{ id: string }>(
+    "SELECT id FROM users WHERE LOWER(email) = ? AND (employee_id IS NULL OR employee_id <> ?) LIMIT 1",
+    [e, excludeEmployeeId],
+  );
+  if (usr[0]) return "This email address is already used by another account.";
+  return null;
+}
+
 export async function createEmployee(rawData: EmployeeInput): Promise<string> {
   const data = normalizeContractDates(rawData);
   const id = `emp-${randomUUID()}`;

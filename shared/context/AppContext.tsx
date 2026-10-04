@@ -99,8 +99,8 @@ export interface AppContextValue {
   uploadProfilePhoto: (photoFile: File) => Promise<ActionResult>;
   removeProfilePhoto: () => Promise<ActionResult>;
 
-  addEmployee: (data: EmployeeInput) => Promise<string | null>;
-  updateEmployee: (id: string, patch: Partial<EmployeeInput>) => Promise<void>;
+  addEmployee: (data: EmployeeInput) => Promise<{ ok: true; id: string } | { ok: false; error: string }>;
+  updateEmployee: (id: string, patch: Partial<EmployeeInput>) => Promise<ActionResult>;
   setEmployeeStatus: (id: string, status: EmployeeStatus, reason?: string | null) => Promise<ActionResult>;
   deleteEmployee: (id: string) => Promise<ActionResult>;
 
@@ -472,25 +472,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ---------- employees ----------
   const addEmployee = useCallback(
-    async (data: EmployeeInput) => {
+    async (data: EmployeeInput): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
       try {
         const { id } = await api<{ id: string }>("/api/employees", { method: "POST", body: data });
         await refreshAll();
-        return id;
+        return { ok: true, id };
       } catch (err) {
-        console.error("addEmployee failed:", errorMessage(err));
-        return null;
+        return { ok: false, error: errorMessage(err) };
       }
     },
     [refreshAll],
   );
 
-  const updateEmployee = useCallback(async (id: string, patch: Partial<EmployeeInput>) => {
+  const updateEmployee = useCallback(async (id: string, patch: Partial<EmployeeInput>): Promise<ActionResult> => {
     try {
       const { employee } = await api<{ employee: Employee }>(`/api/employees/${id}`, { method: "PATCH", body: patch });
       setEmployees((list) => list.map((e) => (e.id === id ? employee : e)));
+      return { ok: true };
     } catch (err) {
-      console.error("updateEmployee failed:", errorMessage(err));
+      return { ok: false, error: errorMessage(err) };
     }
   }, []);
 

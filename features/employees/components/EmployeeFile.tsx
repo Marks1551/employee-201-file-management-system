@@ -92,10 +92,14 @@ export default function HREmployeeFile() {
     setEditOpen(true);
   }
 
-  function handleSave(e: FormEvent) {
+  async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (!employee || !form) return;
-    updateEmployee(employee.id, form);
+    const result = await updateEmployee(employee.id, form);
+    if (!result.ok) {
+      showToast(result.error, "error");
+      return;
+    }
     setEditOpen(false);
     showToast(`Saved changes for ${employee.displayName}.`);
   }
