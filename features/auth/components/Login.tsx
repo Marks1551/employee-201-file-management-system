@@ -1,19 +1,38 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Shield, Users, GraduationCap, Eye, EyeOff, type LucideIcon } from "lucide-react";
+import { Shield, Users, GraduationCap, Fingerprint, Loader2, Eye, EyeOff, type LucideIcon } from "lucide-react";
+import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { useApp, roleHome } from "@/shared/context/AppContext";
 import { isProduction } from "@/shared/lib/env";
 import type { Role } from "@/shared/types";
 
 export default function Login() {
-  const { login, loginAsDemo } = useApp();
+  const { login, loginWithFingerprint, loginAsDemo } = useApp();
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [fingerprintSupported, setFingerprintSupported] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  useEffect(() => {
+    setFingerprintSupported(browserSupportsWebAuthn());
+  }, []);
+
+  async function handleFingerprint() {
+    setError("");
+    setScanning(true);
+    const result = await loginWithFingerprint();
+    setScanning(false);
+    if (!result.ok) {
+      if (!result.cancelled) setError(result.error);
+      return;
+    }
+    router.push(roleHome(result.user.role));
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -109,6 +128,25 @@ export default function Login() {
             Sign In
           </button>
         </form>
+
+        {fingerprintSupported && (
+          <>
+            <div className="flex items-center gap-2.5 my-4 text-ink-faint text-[0.78rem] uppercase tracking-wide">
+              <span className="flex-1 h-px bg-border" />
+              or
+              <span className="flex-1 h-px bg-border" />
+            </div>
+            <button
+              type="button"
+              onClick={handleFingerprint}
+              disabled={scanning}
+              className="w-full inline-flex items-center justify-center gap-2 min-h-[46px] px-5 rounded-lg font-semibold text-[0.95rem] border-[1.5px] border-navy text-navy bg-white hover:bg-navy-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {scanning ? <Loader2 size={18} className="animate-spin" /> : <Fingerprint size={18} />}
+              {scanning ? "Waiting for fingerprint…" : "Sign in with fingerprint"}
+            </button>
+          </>
+        )}
 
         <p className="text-[0.86rem] text-center mt-3 mb-0">
           <a href="/forgot-password" className="text-navy font-semibold no-underline hover:underline">
