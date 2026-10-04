@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Send, Search, MessageSquare, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Search, MessageSquare, Loader2, Paperclip, X, FileText } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { Card, Avatar } from "@/shared/components/ui";
 import type { Role } from "@/shared/types";
@@ -18,15 +18,53 @@ interface Contact {
   unread: number;
 }
 
+interface Attachment {
+  url: string;
+  name: string;
+  type: string;
+  size: number | null;
+}
+
 interface Message {
   id: string;
   body: string;
+  attachment: Attachment | null;
   mine: boolean;
   read: boolean;
   when: string;
 }
 
 const MAX_LEN = 2000;
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — must match the server limit
+const ALLOWED_EXTENSIONS = [
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "ppt",
+  "pptx",
+  "txt",
+  "csv",
+];
+const FILE_ACCEPT = ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(",");
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
+
+function extensionOf(name: string): string {
+  return (name.split(".").pop() || "").toLowerCase();
+}
+
+function formatSize(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function Chat({ role }: { role: "hr" | "faculty" }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -39,6 +77,9 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
@@ -88,6 +129,7 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
     if (!activeId) return;
     setMessages([]);
     setError("");
+    setFile(null); // never carry an attachment over to a different person
     loadMessages(activeId);
     const t = setInterval(() => loadMessages(activeId), 4000);
     return () => clearInterval(t);
@@ -97,22 +139,61 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, activeId]);
 
+  // Thumbnail for a photo that's been picked but not sent yet.
+  useEffect(() => {
+    if (!file || !IMAGE_EXTENSIONS.includes(extensionOf(file.name))) {
+      setFilePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setFilePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  /** Validates a picked/pasted file and stages it for sending. */
+  function stageFile(picked: File | null | undefined) {
+    if (!picked) return;
+    if (!ALLOWED_EXTENSIONS.includes(extensionOf(picked.name))) {
+      setError(
+        "That file type isn't allowed. You can send photos (JPG, PNG, WEBP, GIF), PDF, Word, Excel, PowerPoint, TXT or CSV.",
+      );
+      return;
+    }
+    if (picked.size > MAX_FILE_SIZE) {
+      setError("File must be smaller than 5MB.");
+      return;
+    }
+    setError("");
+    setFile(picked);
+  }
+
   async function handleSend() {
     const body = draft.trim();
-    if (!body || !activeId || sending) return;
+    if ((!body && !file) || !activeId || sending) return;
     setSending(true);
     setError("");
     try {
-      const res = await fetch(`/api/chat/${activeId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body }),
-      });
+      let res: Response;
+      if (file) {
+        // Photo/file (with optional caption) goes as multipart; the browser sets the boundary header itself.
+        const form = new FormData();
+        form.append("body", body);
+        form.append("file", file);
+        res = await fetch(`/api/chat/${activeId}`, { method: "POST", body: form });
+      } else {
+        res = await fetch(`/api/chat/${activeId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body }),
+        });
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Message could not be sent.");
       setMessages(data.messages);
       setMessagesFor(activeId);
       setDraft("");
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       loadContacts();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Message could not be sent.");
@@ -232,7 +313,38 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
                             : "bg-white text-ink border border-border rounded-bl-sm"
                         }`}
                       >
-                        <p className="m-0 whitespace-pre-wrap break-words">{m.body}</p>
+                        {m.attachment &&
+                          (m.attachment.type.startsWith("image/") ? (
+                            <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" className="block">
+                              <img
+                                src={m.attachment.url}
+                                alt={m.attachment.name}
+                                loading="lazy"
+                                className={`rounded-lg max-h-64 max-w-full object-cover ${m.body ? "mb-2" : ""}`}
+                              />
+                            </a>
+                          ) : (
+                            <a
+                              href={m.attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 no-underline ${m.body ? "mb-2" : ""} ${
+                                m.mine
+                                  ? "bg-white/15 text-white hover:bg-white/25"
+                                  : "bg-cream text-ink hover:bg-navy-100"
+                              }`}
+                            >
+                              <FileText size={22} className="flex-shrink-0" />
+                              <span className="min-w-0">
+                                <span className="block font-semibold text-[0.86rem] truncate">{m.attachment.name}</span>
+                                <span className={`block text-[0.72rem] ${m.mine ? "text-white/70" : "text-ink-faint"}`}>
+                                  {formatSize(m.attachment.size)}
+                                  {m.attachment.size ? " · " : ""}Tap to open
+                                </span>
+                              </span>
+                            </a>
+                          ))}
+                        {m.body && <p className="m-0 whitespace-pre-wrap break-words">{m.body}</p>}
                         <span
                           className={`block text-[0.68rem] mt-1 text-right ${m.mine ? "text-white/70" : "text-ink-faint"}`}
                         >
@@ -252,7 +364,58 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
                 </div>
               )}
 
-              <div className="flex items-end gap-2 p-3 border-t border-border bg-white">
+              {file && (
+                <div className="flex items-center gap-3 px-3 pt-3 bg-white border-t border-border">
+                  <div className="flex items-center gap-3 min-w-0 bg-cream rounded-lg px-3 py-2 border border-border">
+                    {filePreview ? (
+                      <img
+                        src={filePreview}
+                        alt="Selected photo"
+                        className="w-12 h-12 rounded object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <FileText size={24} className="text-navy flex-shrink-0" />
+                    )}
+                    <span className="min-w-0">
+                      <span className="block text-[0.86rem] font-semibold truncate max-w-[220px]">{file.name}</span>
+                      <span className="block text-[0.72rem] text-ink-faint">{formatSize(file.size)}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      aria-label="Remove attachment"
+                      className="bg-transparent border-none cursor-pointer text-ink-faint hover:text-danger-text p-1"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className={`flex items-end gap-2 p-3 bg-white ${file ? "" : "border-t border-border"}`}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={FILE_ACCEPT}
+                  className="hidden"
+                  onChange={(e) => {
+                    stageFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                  aria-label="Attach a photo or file"
+                  title="Attach a photo or file"
+                  className="min-h-[46px] w-[46px] rounded-lg border border-border-strong bg-white text-navy flex items-center justify-center cursor-pointer hover:bg-navy-100 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  <Paperclip size={18} />
+                </button>
                 <textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value.slice(0, MAX_LEN))}
@@ -262,13 +425,30 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
                       handleSend();
                     }
                   }}
+                  onPaste={(e) => {
+                    // Pasting a screenshot/photo attaches it.
+                    const pasted = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
+                    if (pasted) {
+                      e.preventDefault();
+                      const ext = pasted.type.split("/")[1] || "png";
+                      stageFile(
+                        new File(
+                          [pasted],
+                          pasted.name && pasted.name !== "image.png"
+                            ? pasted.name
+                            : `pasted-image.${ext === "jpeg" ? "jpg" : ext}`,
+                          { type: pasted.type },
+                        ),
+                      );
+                    }
+                  }}
                   rows={1}
                   placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
                   className="flex-1 resize-none max-h-32 min-h-[46px] px-3.5 py-3 rounded-lg border border-border-strong text-[0.92rem] bg-white"
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!draft.trim() || sending}
+                  disabled={(!draft.trim() && !file) || sending}
                   aria-label="Send message"
                   className="min-h-[46px] w-[46px] rounded-lg bg-navy text-white flex items-center justify-center cursor-pointer hover:bg-navy-dark disabled:opacity-50 disabled:cursor-not-allowed"
                 >

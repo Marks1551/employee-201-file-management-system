@@ -292,6 +292,11 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_id     VARCHAR(64) NOT NULL,
   recipient_id  VARCHAR(64) NOT NULL,
   body          VARCHAR(2000) NOT NULL,
+  -- optional photo/file sent with (or instead of) the text; body is '' for attachment-only messages
+  attachment_url   VARCHAR(500) NULL,
+  attachment_name  VARCHAR(255) NULL,
+  attachment_type  VARCHAR(100) NULL,
+  attachment_size  INT NULL,
   read_at       TIMESTAMP NULL,
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_messages_pair (sender_id, recipient_id, created_at),

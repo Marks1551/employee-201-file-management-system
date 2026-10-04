@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { query, execute } from "@/shared/server/db";
 import { fmt } from "@/shared/server/format";
 import { ensurePhotoColumn } from "@/features/users/server/service";
+import type { SavedAttachment } from "@/features/chat/server/attachments";
 import type { Role } from "@/shared/types";
 
 export interface ChatContact {
@@ -16,17 +17,52 @@ export interface ChatContact {
   unread: number;
 }
 
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size: number | null;
+}
+
 export interface ChatMessage {
   id: string;
   senderId: string;
   recipientId: string;
   body: string;
+  attachment: ChatAttachment | null;
   mine: boolean;
   read: boolean;
   when: string;
 }
 
 export const MAX_MESSAGE_LENGTH = 2000;
+
+/** Older databases don't have the attachment columns on `messages` yet — add them once, automatically. */
+let attachmentColumnsReady: Promise<void> | null = null;
+function ensureAttachmentColumns(): Promise<void> {
+  if (!attachmentColumnsReady) {
+    attachmentColumnsReady = (async () => {
+      try {
+        const rows = await query<{ COLUMN_NAME: string }>(
+          "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'messages' AND COLUMN_NAME = 'attachment_url'",
+        );
+        if (rows.length === 0) {
+          await execute(
+            `ALTER TABLE messages
+               ADD COLUMN attachment_url VARCHAR(500) NULL AFTER body,
+               ADD COLUMN attachment_name VARCHAR(255) NULL AFTER attachment_url,
+               ADD COLUMN attachment_type VARCHAR(100) NULL AFTER attachment_name,
+               ADD COLUMN attachment_size INT NULL AFTER attachment_type`,
+          );
+        }
+      } catch (err) {
+        console.error("ensureAttachmentColumns failed:", err);
+        attachmentColumnsReady = null;
+      }
+    })();
+  }
+  return attachmentColumnsReady;
+}
 
 /** Chat is HR <-> Faculty only. Returns the role a given role may talk to. */
 export function chatPartnerRole(role: string): Role | null {
@@ -41,6 +77,7 @@ export async function listContacts(me: { id: string; role: string }): Promise<Ch
   if (!partnerRole) return [];
 
   await ensurePhotoColumn();
+  await ensureAttachmentColumns();
   const rows = await query<{
     id: string;
     name: string;
@@ -53,7 +90,10 @@ export async function listContacts(me: { id: string; role: string }): Promise<Ch
     unread: number | string;
   }>(
     `SELECT u.id, u.name, u.initials, u.role, COALESCE(u.photo_url, e.photo_url) AS photo_url,
-            (SELECT m.body FROM messages m
+            (SELECT CASE WHEN m.body <> '' THEN m.body
+                         WHEN m.attachment_type LIKE 'image/%' THEN 'Sent a photo'
+                         ELSE CONCAT('Sent a file: ', m.attachment_name) END
+               FROM messages m
               WHERE (m.sender_id = u.id AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = u.id)
               ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body,
             (SELECT m.created_at FROM messages m
@@ -99,15 +139,20 @@ export async function getAllowedPartner(
 }
 
 export async function getConversation(meId: string, otherId: string, afterId?: string | null): Promise<ChatMessage[]> {
+  await ensureAttachmentColumns();
   const rows = await query<{
     id: string;
     sender_id: string;
     recipient_id: string;
     body: string;
+    attachment_url: string | null;
+    attachment_name: string | null;
+    attachment_type: string | null;
+    attachment_size: number | string | null;
     read_at: string | null;
     created_at: string;
   }>(
-    `SELECT id, sender_id, recipient_id, body, read_at, created_at FROM (
+    `SELECT id, sender_id, recipient_id, body, attachment_url, attachment_name, attachment_type, attachment_size, read_at, created_at FROM (
        SELECT * FROM messages
         WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
         ORDER BY created_at DESC, id DESC LIMIT 300
@@ -119,6 +164,14 @@ export async function getConversation(meId: string, otherId: string, afterId?: s
     senderId: r.sender_id,
     recipientId: r.recipient_id,
     body: r.body,
+    attachment: r.attachment_url
+      ? {
+          url: r.attachment_url,
+          name: r.attachment_name || "file",
+          type: r.attachment_type || "application/octet-stream",
+          size: r.attachment_size === null ? null : Number(r.attachment_size),
+        }
+      : null,
     mine: r.sender_id === meId,
     read: !!r.read_at,
     when: fmt(r.created_at) || "",
@@ -132,13 +185,26 @@ export async function markConversationRead(meId: string, otherId: string): Promi
   );
 }
 
-export async function sendMessage(senderId: string, recipientId: string, body: string): Promise<void> {
-  await execute("INSERT INTO messages (id, sender_id, recipient_id, body) VALUES (?,?,?,?)", [
-    `msg-${randomUUID()}`,
-    senderId,
-    recipientId,
-    body,
-  ]);
+export async function sendMessage(
+  senderId: string,
+  recipientId: string,
+  body: string,
+  attachment?: SavedAttachment | null,
+): Promise<void> {
+  await ensureAttachmentColumns();
+  await execute(
+    "INSERT INTO messages (id, sender_id, recipient_id, body, attachment_url, attachment_name, attachment_type, attachment_size) VALUES (?,?,?,?,?,?,?,?)",
+    [
+      `msg-${randomUUID()}`,
+      senderId,
+      recipientId,
+      body,
+      attachment?.url ?? null,
+      attachment?.name ?? null,
+      attachment?.type ?? null,
+      attachment?.size ?? null,
+    ] as any[],
+  );
 }
 
 export async function countUnread(meId: string): Promise<number> {
