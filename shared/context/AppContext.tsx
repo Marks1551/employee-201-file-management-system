@@ -95,6 +95,9 @@ export interface AppContextValue {
   setUserRole: (id: string, role: Role) => Promise<void>;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<ActionResult>;
   changeUsername: (newUsername: string, currentPassword: string) => Promise<ActionResult>;
+  updateProfileName: (name: string) => Promise<ActionResult>;
+  uploadProfilePhoto: (photoFile: File) => Promise<ActionResult>;
+  removeProfilePhoto: () => Promise<ActionResult>;
 
   addEmployee: (data: EmployeeInput) => Promise<string | null>;
   updateEmployee: (id: string, patch: Partial<EmployeeInput>) => Promise<void>;
@@ -420,6 +423,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [refreshAll],
   );
+
+  // ---------- own profile (admin & HR only; the server enforces this) ----------
+  const updateProfileName = useCallback(
+    async (name: string): Promise<ActionResult> => {
+      try {
+        const { user } = await api<{ user: User }>("/api/auth/profile", { method: "PATCH", body: { name } });
+        setCurrentUser(user);
+        await refreshAll();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
+      }
+    },
+    [refreshAll],
+  );
+
+  const uploadProfilePhoto = useCallback(
+    async (photoFile: File): Promise<ActionResult> => {
+      try {
+        const body = new FormData();
+        body.append("photo", photoFile);
+        const res = await fetch("/api/auth/profile/photo", { method: "POST", body });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Photo upload failed.");
+        setCurrentUser(data.user);
+        await refreshAll();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
+      }
+    },
+    [refreshAll],
+  );
+
+  const removeProfilePhoto = useCallback(async (): Promise<ActionResult> => {
+    try {
+      const res = await fetch("/api/auth/profile/photo", { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not remove photo.");
+      setCurrentUser(data.user);
+      await refreshAll();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: errorMessage(err) };
+    }
+  }, [refreshAll]);
 
   // ---------- employees ----------
   const addEmployee = useCallback(
@@ -871,6 +920,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserRole,
     changePassword,
     changeUsername,
+    updateProfileName,
+    uploadProfilePhoto,
+    removeProfilePhoto,
     addEmployee,
     updateEmployee,
     setEmployeeStatus,

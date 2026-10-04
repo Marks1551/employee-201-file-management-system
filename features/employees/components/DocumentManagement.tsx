@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { Search, Eye } from "lucide-react";
 import Layout from "@/shared/components/Layout";
@@ -25,6 +25,12 @@ export default function DocumentManagement() {
   const showToast = useToast();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Dashboard cards link here with ?status=pending|missing|uploaded|rejected — open that tab.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("status");
+    if (wanted && ["uploaded", "pending", "missing", "rejected"].includes(wanted)) setStatusFilter(wanted);
+  }, []);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingRow = useRef<DocumentRow | null>(null);

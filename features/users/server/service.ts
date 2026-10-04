@@ -21,6 +21,7 @@ function mapUserRow(row: UserRow): User {
     role: row.role,
     status: row.status,
     employeeId: row.employee_id,
+    photoUrl: row.photo_url ?? null,
     lastActive: fmt(row.last_active) || "Never",
     needsPasswordSetup: !!row.needs_password_setup,
   };
@@ -387,4 +388,42 @@ export async function requestPasswordReset(identifier: string): Promise<void> {
   const token = await createSetupToken(row.id, "reset", RESET_TOKEN_TTL_HOURS);
   const link = `${appUrl()}/account-setup?token=${token}`;
   await sendPasswordResetEmail({ to: row.email, name: row.name, link, expiresInHours: RESET_TOKEN_TTL_HOURS });
+}
+
+/** Older databases don't have users.photo_url yet — add it once, automatically. */
+let photoColumnReady: Promise<void> | null = null;
+function ensurePhotoColumn(): Promise<void> {
+  if (!photoColumnReady) {
+    photoColumnReady = (async () => {
+      try {
+        const rows = await query<{ COLUMN_NAME: string }>(
+          "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'photo_url'",
+        );
+        if (rows.length === 0)
+          await execute("ALTER TABLE users ADD COLUMN photo_url VARCHAR(500) NULL AFTER employee_id");
+      } catch (err) {
+        console.error("ensurePhotoColumn failed:", err);
+        photoColumnReady = null;
+      }
+    })();
+  }
+  return photoColumnReady;
+}
+
+/** Lets an admin/HR user rename themselves (the route restricts this to those roles). */
+export async function updateOwnName(
+  id: string,
+  newName: string,
+): Promise<{ ok: boolean; error?: string; previousName?: string }> {
+  const name = newName.trim().replace(/\s+/g, " ");
+  if (name.length < 2 || name.length > 100) return { ok: false, error: "Name must be 2 to 100 characters." };
+  const rows = await query<UserRow>("SELECT * FROM users WHERE id = ?", [id]);
+  if (!rows[0]) return { ok: false, error: "Account not found." };
+  await execute("UPDATE users SET name = ?, initials = ? WHERE id = ?", [name, initials(name), id]);
+  return { ok: true, previousName: rows[0].name };
+}
+
+export async function setUserPhoto(id: string, photoUrl: string | null): Promise<void> {
+  await ensurePhotoColumn();
+  await execute("UPDATE users SET photo_url = ? WHERE id = ?", [photoUrl, id]);
 }

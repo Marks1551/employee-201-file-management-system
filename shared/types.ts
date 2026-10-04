@@ -2,14 +2,14 @@
 // These describe the shapes the UI/API exchange (i.e. the mapped, camelCase
 // objects produced by lib/models.ts) as well as the raw snake_case DB rows.
 
-export type Role = 'admin' | 'hr' | 'faculty';
-export type UserStatus = 'active' | 'deactivated';
-export type EmployeeStatus = 'active' | 'inactive';
-export type DocumentStatus = 'uploaded' | 'missing' | 'pending' | 'rejected';
-export type CertStatus = 'on-file' | 'expiring';
-export type NotificationKind = 'missing_document' | 'expiring_training' | 'pending_document';
-export type NotificationStatus = 'unread' | 'read';
-export type EmploymentStatusValue = 'Regular' | 'Contractual';
+export type Role = "admin" | "hr" | "faculty";
+export type UserStatus = "active" | "deactivated";
+export type EmployeeStatus = "active" | "inactive";
+export type DocumentStatus = "uploaded" | "missing" | "pending" | "rejected";
+export type CertStatus = "on-file" | "expiring";
+export type NotificationKind = "missing_document" | "expiring_training" | "pending_document";
+export type NotificationStatus = "unread" | "read";
+export type EmploymentStatusValue = "Regular" | "Contractual";
 
 /** A file previously stored via saveDocumentFile / passed to the model layer. */
 export interface StoredFile {
@@ -76,7 +76,7 @@ export interface WorkExperienceRecord {
   description: string | null;
   /** PDS Section V extras */
   statusOfAppointment: string | null;
-  govtService: 'Y' | 'N' | null;
+  govtService: "Y" | "N" | null;
 }
 
 export interface CivilServiceEligibilityRecord {
@@ -139,7 +139,15 @@ export interface PdsAddress {
 }
 
 export function emptyPdsAddress(): PdsAddress {
-  return { houseBlockLot: null, street: null, subdivision: null, barangay: null, cityMunicipality: null, province: null, zipCode: null };
+  return {
+    houseBlockLot: null,
+    street: null,
+    subdivision: null,
+    barangay: null,
+    cityMunicipality: null,
+    province: null,
+    zipCode: null,
+  };
 }
 
 /** Additional CS Form No. 212 (Revised 2025) fields not covered by the core
@@ -226,28 +234,72 @@ export interface PdsDetails {
 
 export function emptyPdsDetails(): PdsDetails {
   return {
-    nameExtension: null, sexAtBirth: null, placeOfBirth: null, heightM: null, weightKg: null, bloodType: null,
-    gsisUmidNo: null, pagibigNo: null, philhealthNo: null, philsysNumber: null, tinNo: null, agencyEmployeeNo: null,
-    dualCitizenshipCountry: null, telephoneNo: null, mobileNo: null,
-    residentialAddress: emptyPdsAddress(), permanentAddress: emptyPdsAddress(), permanentSameAsResidential: false,
-    spouseSurname: null, spouseFirstName: null, spouseMiddleName: null, spouseNameExtension: null,
-    spouseOccupation: null, spouseEmployer: null, spouseBusinessAddress: null, spouseTelephone: null,
+    nameExtension: null,
+    sexAtBirth: null,
+    placeOfBirth: null,
+    heightM: null,
+    weightKg: null,
+    bloodType: null,
+    gsisUmidNo: null,
+    pagibigNo: null,
+    philhealthNo: null,
+    philsysNumber: null,
+    tinNo: null,
+    agencyEmployeeNo: null,
+    dualCitizenshipCountry: null,
+    telephoneNo: null,
+    mobileNo: null,
+    residentialAddress: emptyPdsAddress(),
+    permanentAddress: emptyPdsAddress(),
+    permanentSameAsResidential: false,
+    spouseSurname: null,
+    spouseFirstName: null,
+    spouseMiddleName: null,
+    spouseNameExtension: null,
+    spouseOccupation: null,
+    spouseEmployer: null,
+    spouseBusinessAddress: null,
+    spouseTelephone: null,
     children: [],
-    fatherSurname: null, fatherFirstName: null, fatherMiddleName: null, fatherNameExtension: null,
-    motherMaidenSurname: null, motherFirstName: null, motherMiddleName: null,
-    specialSkillsHobbies: null, nonAcademicDistinctions: null, orgMemberships: null,
-    q34RelatedThirdDegree: null, q34RelatedFourthDegree: null, q34Details: null,
-    q35aAdminOffense: null, q35aDetails: null,
-    q35bCriminalCharge: null, q35bDetails: null, q35bDateFiled: null, q35bStatus: null,
-    q36Convicted: null, q36Details: null,
-    q37Separated: null, q37Details: null,
-    q38aCandidate: null, q38aDetails: null,
-    q38bResigned: null, q38bDetails: null,
-    q39Immigrant: null, q39Country: null,
-    q40aIndigenous: null, q40aDetails: null,
-    q40bPwd: null, q40bIdNo: null,
-    q40cSoloParent: null, q40cIdNo: null,
-    govIdType: null, govIdNumber: null, govIdDateIssued: null, govIdPlaceIssued: null,
+    fatherSurname: null,
+    fatherFirstName: null,
+    fatherMiddleName: null,
+    fatherNameExtension: null,
+    motherMaidenSurname: null,
+    motherFirstName: null,
+    motherMiddleName: null,
+    specialSkillsHobbies: null,
+    nonAcademicDistinctions: null,
+    orgMemberships: null,
+    q34RelatedThirdDegree: null,
+    q34RelatedFourthDegree: null,
+    q34Details: null,
+    q35aAdminOffense: null,
+    q35aDetails: null,
+    q35bCriminalCharge: null,
+    q35bDetails: null,
+    q35bDateFiled: null,
+    q35bStatus: null,
+    q36Convicted: null,
+    q36Details: null,
+    q37Separated: null,
+    q37Details: null,
+    q38aCandidate: null,
+    q38aDetails: null,
+    q38bResigned: null,
+    q38bDetails: null,
+    q39Immigrant: null,
+    q39Country: null,
+    q40aIndigenous: null,
+    q40aDetails: null,
+    q40bPwd: null,
+    q40bIdNo: null,
+    q40cSoloParent: null,
+    q40cIdNo: null,
+    govIdType: null,
+    govIdNumber: null,
+    govIdDateIssued: null,
+    govIdPlaceIssued: null,
   };
 }
 
@@ -323,6 +375,8 @@ export interface User {
   role: Role;
   status: UserStatus;
   employeeId: string | null;
+  /** Profile picture (admin and HR set their own; faculty photos live on the employee record). */
+  photoUrl?: string | null;
   lastActive: string;
   /** True for auto-created accounts still waiting on the person to set a
    *  password via their emailed setup link. */
@@ -448,7 +502,7 @@ export interface WorkExperienceRow {
   to_date: string | null;
   description: string | null;
   status_of_appointment: string | null;
-  govt_service: 'Y' | 'N' | null;
+  govt_service: "Y" | "N" | null;
 }
 
 export interface CivilServiceEligibilityRow {
@@ -510,6 +564,7 @@ export interface UserRow {
   status: UserStatus;
   needs_password_setup: number | boolean;
   employee_id: string | null;
+  photo_url?: string | null;
   last_active: string | null;
   created_at?: string;
 }

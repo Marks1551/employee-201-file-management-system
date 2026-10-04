@@ -12,6 +12,7 @@ import {
   UploadCloud,
   Fingerprint,
   MessageSquare,
+  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/shared/types";
@@ -40,6 +41,7 @@ export const navConfig: Record<Role, NavItem[]> = {
     { to: "/admin/backup", label: "Backup Database", icon: Database },
     { to: "/admin/audit-logs", label: "Audit Logs", icon: ClipboardList },
     { section: "Account" },
+    { to: "/admin/profile", label: "My Profile", icon: UserCircle },
     { to: "/admin/change-password", label: "Change Password", icon: KeyRound },
     { to: "/admin/fingerprint", label: "Fingerprint Login", icon: Fingerprint },
   ],
@@ -51,6 +53,7 @@ export const navConfig: Record<Role, NavItem[]> = {
     { to: "/hr/chat", label: "Chat", icon: MessageSquare, badgeKey: "chat" },
     { to: "/hr/reports", label: "Generate Reports", icon: FileBarChart },
     { section: "Account" },
+    { to: "/hr/profile", label: "My Profile", icon: UserCircle },
     { to: "/hr/change-password", label: "Change Password", icon: KeyRound },
     { to: "/hr/fingerprint", label: "Fingerprint Login", icon: Fingerprint },
   ],

@@ -74,10 +74,28 @@ export default function FacultyDashboard() {
       </p>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatCard icon={CheckCircle2} color="green" value={`${uploaded} of ${total}`} label="Documents on file" />
-        <StatCard icon={AlertTriangle} color="gold" value={missing.length} label="Pending / missing" />
-        <StatCard icon={XCircle} color="red" value={rejected.length} label="Rejected documents" />
-        <StatCard icon={Calendar} color="navy" value={currentEmployee.dateHired} label="Date hired" />
+        <StatCard
+          icon={CheckCircle2}
+          color="green"
+          value={`${uploaded} of ${total}`}
+          label="Documents on file"
+          to="/faculty/201file"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          color="gold"
+          value={missing.length}
+          label="Pending / missing"
+          to="/faculty/submit"
+        />
+        <StatCard icon={XCircle} color="red" value={rejected.length} label="Rejected documents" to="/faculty/submit" />
+        <StatCard
+          icon={Calendar}
+          color="navy"
+          value={currentEmployee.dateHired}
+          label="Date hired"
+          to="/faculty/201file"
+        />
       </div>
 
       <div>

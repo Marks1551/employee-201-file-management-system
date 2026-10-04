@@ -1,7 +1,8 @@
 "use client";
 
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import { Check, AlertTriangle, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { Check, AlertTriangle, ChevronRight as ChevronIcon, type LucideIcon } from "lucide-react";
 
 export function Card({ className = "", children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
@@ -124,21 +125,35 @@ interface StatCardProps {
   color?: StatColor;
   value: ReactNode;
   label: ReactNode;
+  /** When set, the whole card is a link to this page. */
+  to?: string;
 }
 
-export function StatCard({ icon: Icon, color = "navy", value, label }: StatCardProps) {
-  return (
-    <Card className="flex gap-3.5 items-start p-5">
+export function StatCard({ icon: Icon, color = "navy", value, label, to }: StatCardProps) {
+  const card = (
+    <Card
+      className={`flex gap-3.5 items-start p-5 ${to ? "h-full transition-all hover:border-gold hover:shadow-pop" : ""}`}
+    >
       <div
         className={`w-[46px] h-[46px] rounded-xl flex items-center justify-center flex-shrink-0 ${statIconBg[color]}`}
       >
         <Icon size={24} />
       </div>
-      <div>
+      <div className="min-w-0 flex-1">
         <div className="font-display text-2xl font-bold text-navy-dark leading-none mb-1">{value}</div>
         <div className="text-[0.86rem] text-ink-muted">{label}</div>
       </div>
+      {to && <ChevronIcon size={18} className="text-ink-faint flex-shrink-0 self-center" aria-hidden="true" />}
     </Card>
+  );
+  if (!to) return card;
+  return (
+    <Link
+      href={to}
+      className="block h-full no-underline text-inherit rounded-2xl focus-visible:outline-2 focus-visible:outline-navy focus-visible:outline-offset-2"
+    >
+      {card}
+    </Link>
   );
 }
 

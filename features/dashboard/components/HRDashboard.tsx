@@ -41,7 +41,7 @@ export default function HRDashboard() {
               {pendingCount} {pendingCount === 1 ? "document is" : "documents are"} waiting for your review
             </strong>
             Faculty submissions need to be approved or rejected.{" "}
-            <Link href="/hr/documents" className="underline font-medium">
+            <Link href="/hr/documents?status=pending" className="underline font-medium">
               Review pending documents
             </Link>
             .
@@ -55,7 +55,7 @@ export default function HRDashboard() {
           <div>
             <strong className="block mb-0.5">{incomplete.length} employees have incomplete 201 files</strong>
             Missing documents or rejected submissions still need action.{" "}
-            <Link href="/hr/documents" className="underline font-medium">
+            <Link href="/hr/documents?status=missing" className="underline font-medium">
               View the list
             </Link>
             .
@@ -64,21 +64,27 @@ export default function HRDashboard() {
       )}
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
-        <StatCard icon={Users} color="green" value={employees.length} label="Employee records" />
-        <Link href="/hr/documents" className="no-underline block">
-          <StatCard icon={Clock} color="gold" value={pendingCount} label="Pending documents (to review)" />
-        </Link>
+        <StatCard icon={Users} color="green" value={employees.length} label="Employee records" to="/hr/employees" />
+        <StatCard
+          icon={Clock}
+          color="gold"
+          value={pendingCount}
+          label="Pending documents (to review)"
+          to="/hr/documents?status=pending"
+        />
         <StatCard
           icon={AlertTriangle}
           color="gold"
           value={missingCount + rejectedCount}
           label="Missing / rejected documents"
+          to="/hr/documents?status=missing"
         />
         <StatCard
           icon={FileText}
           color="navy"
           value={employees.reduce((a, e) => a + e.documents.filter((d) => d.status === "uploaded").length, 0)}
           label="Documents on file"
+          to="/hr/documents?status=uploaded"
         />
       </div>
 
