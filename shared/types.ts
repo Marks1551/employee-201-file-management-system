@@ -375,7 +375,8 @@ export interface User {
   role: Role;
   status: UserStatus;
   employeeId: string | null;
-  /** Profile picture (admin and HR set their own; faculty photos live on the employee record). */
+  /** Profile picture: the user's own uploaded photo, or — if they have none — the photo on their
+   *  linked employee record (this is how faculty photos reach their account). */
   photoUrl?: string | null;
   lastActive: string;
   /** True for auto-created accounts still waiting on the person to set a
@@ -565,6 +566,8 @@ export interface UserRow {
   needs_password_setup: number | boolean;
   employee_id: string | null;
   photo_url?: string | null;
+  /** Photo of the linked employee record (joined in by listUsers / getUserPublic). */
+  employee_photo_url?: string | null;
   last_active: string | null;
   created_at?: string;
 }

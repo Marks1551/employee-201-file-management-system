@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Send, Search, MessageSquare, Loader2 } from "lucide-react";
 import Layout from "@/shared/components/Layout";
-import { Card } from "@/shared/components/ui";
+import { Card, Avatar } from "@/shared/components/ui";
 import type { Role } from "@/shared/types";
 
 interface Contact {
   id: string;
   name: string;
   initials: string;
+  photoUrl: string | null;
   role: Role;
   lastMessage: string | null;
   lastMessageAt: string | null;
@@ -160,9 +161,7 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
                     c.id === activeId ? "bg-navy-100" : "bg-white hover:bg-cream"
                   }`}
                 >
-                  <div className="w-10 h-10 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-[0.85rem] flex-shrink-0">
-                    {c.initials}
-                  </div>
+                  <Avatar photoUrl={c.photoUrl} initials={c.initials} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <strong className="text-[0.92rem] text-ink truncate">{c.name}</strong>
@@ -206,9 +205,7 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                <div className="w-9 h-9 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-[0.8rem]">
-                  {active.initials}
-                </div>
+                <Avatar photoUrl={active.photoUrl} initials={active.initials} size="sm" />
                 <div className="leading-tight">
                   <strong className="block text-[0.95rem]">{active.name}</strong>
                   <span className="text-[0.76rem] text-ink-faint">

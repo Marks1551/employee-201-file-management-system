@@ -361,6 +361,21 @@ export async function findEmailConflict(
   return null;
 }
 
+/** Returns a user-facing message if `employeeNumber` already belongs to another employee
+ *  record, otherwise null. Case-insensitive, ignores surrounding whitespace. */
+export async function findEmployeeNumberConflict(
+  employeeNumber: string | null | undefined,
+  excludeEmployeeId = "",
+): Promise<string | null> {
+  const n = (employeeNumber || "").trim().toLowerCase();
+  if (!n) return null;
+  const rows = await query<{ id: string }>(
+    "SELECT id FROM employees WHERE LOWER(TRIM(employee_number)) = ? AND id <> ? LIMIT 1",
+    [n, excludeEmployeeId],
+  );
+  return rows[0] ? "An employee record with this employee number already exists." : null;
+}
+
 export async function createEmployee(rawData: EmployeeInput): Promise<string> {
   const data = normalizeContractDates(rawData);
   const id = `emp-${randomUUID()}`;

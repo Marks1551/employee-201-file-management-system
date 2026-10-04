@@ -1,12 +1,14 @@
-import { randomUUID } from 'crypto';
-import { query, execute } from '@/shared/server/db';
-import { fmt } from '@/shared/server/format';
-import type { Role } from '@/shared/types';
+import { randomUUID } from "crypto";
+import { query, execute } from "@/shared/server/db";
+import { fmt } from "@/shared/server/format";
+import { ensurePhotoColumn } from "@/features/users/server/service";
+import type { Role } from "@/shared/types";
 
 export interface ChatContact {
   id: string;
   name: string;
   initials: string;
+  photoUrl: string | null;
   role: Role;
   lastMessage: string | null;
   lastMessageAt: string | null;
@@ -28,8 +30,8 @@ export const MAX_MESSAGE_LENGTH = 2000;
 
 /** Chat is HR <-> Faculty only. Returns the role a given role may talk to. */
 export function chatPartnerRole(role: string): Role | null {
-  if (role === 'hr') return 'faculty';
-  if (role === 'faculty') return 'hr';
+  if (role === "hr") return "faculty";
+  if (role === "faculty") return "hr";
   return null;
 }
 
@@ -38,17 +40,19 @@ export async function listContacts(me: { id: string; role: string }): Promise<Ch
   const partnerRole = chatPartnerRole(me.role);
   if (!partnerRole) return [];
 
+  await ensurePhotoColumn();
   const rows = await query<{
     id: string;
     name: string;
     initials: string | null;
+    photo_url: string | null;
     role: Role;
     last_body: string | null;
     last_at: string | null;
     last_sender: string | null;
     unread: number | string;
   }>(
-    `SELECT u.id, u.name, u.initials, u.role,
+    `SELECT u.id, u.name, u.initials, u.role, COALESCE(u.photo_url, e.photo_url) AS photo_url,
             (SELECT m.body FROM messages m
               WHERE (m.sender_id = u.id AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = u.id)
               ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_body,
@@ -61,6 +65,7 @@ export async function listContacts(me: { id: string; role: string }): Promise<Ch
             (SELECT COUNT(*) FROM messages m
               WHERE m.sender_id = u.id AND m.recipient_id = ? AND m.read_at IS NULL) AS unread
        FROM users u
+       LEFT JOIN employees e ON e.id = u.employee_id
       WHERE u.role = ? AND u.status = 'active' AND u.id <> ?
       ORDER BY (last_at IS NULL), last_at DESC, u.name ASC`,
     [me.id, me.id, me.id, me.id, me.id, me.id, me.id, partnerRole, me.id],
@@ -70,6 +75,7 @@ export async function listContacts(me: { id: string; role: string }): Promise<Ch
     id: r.id,
     name: r.name,
     initials: r.initials || r.name.slice(0, 2).toUpperCase(),
+    photoUrl: r.photo_url || null,
     role: r.role,
     lastMessage: r.last_body,
     lastMessageAt: r.last_at ? fmt(r.last_at) : null,
@@ -115,19 +121,19 @@ export async function getConversation(meId: string, otherId: string, afterId?: s
     body: r.body,
     mine: r.sender_id === meId,
     read: !!r.read_at,
-    when: fmt(r.created_at) || '',
+    when: fmt(r.created_at) || "",
   }));
 }
 
 export async function markConversationRead(meId: string, otherId: string): Promise<void> {
   await execute(
-    'UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL',
+    "UPDATE messages SET read_at = CURRENT_TIMESTAMP WHERE sender_id = ? AND recipient_id = ? AND read_at IS NULL",
     [otherId, meId],
   );
 }
 
 export async function sendMessage(senderId: string, recipientId: string, body: string): Promise<void> {
-  await execute('INSERT INTO messages (id, sender_id, recipient_id, body) VALUES (?,?,?,?)', [
+  await execute("INSERT INTO messages (id, sender_id, recipient_id, body) VALUES (?,?,?,?)", [
     `msg-${randomUUID()}`,
     senderId,
     recipientId,
@@ -137,7 +143,7 @@ export async function sendMessage(senderId: string, recipientId: string, body: s
 
 export async function countUnread(meId: string): Promise<number> {
   const rows = await query<{ c: number | string }>(
-    'SELECT COUNT(*) AS c FROM messages WHERE recipient_id = ? AND read_at IS NULL',
+    "SELECT COUNT(*) AS c FROM messages WHERE recipient_id = ? AND read_at IS NULL",
     [meId],
   );
   return Number(rows[0]?.c) || 0;

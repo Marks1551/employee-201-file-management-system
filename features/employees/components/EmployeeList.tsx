@@ -51,6 +51,7 @@ export default function HREmployees() {
   const [pdsFileName, setPdsFileName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [numberError, setNumberError] = useState("");
   const [deactivateTarget, setDeactivateTarget] = useState<Employee | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
@@ -91,6 +92,8 @@ export default function HREmployees() {
 
   function closeAdd() {
     setAddOpen(false);
+    setEmailError("");
+    setNumberError("");
     setForm(emptyForm);
     setPhotoFile(null);
     setContractFile(null);
@@ -130,13 +133,16 @@ export default function HREmployees() {
     e.preventDefault();
     if (!form.displayName.trim() || !form.employeeNumber.trim()) return;
     setEmailError("");
+    setNumberError("");
 
-    // Quick check against the records already loaded (the server re-checks as the final say).
+    // Quick checks against the records already loaded (the server re-checks as the final say).
+    const typedNumber = form.employeeNumber.trim().toLowerCase();
     const typedEmail = form.email.trim().toLowerCase();
-    if (typedEmail && employees.some((emp) => (emp.email || "").trim().toLowerCase() === typedEmail)) {
-      setEmailError("An employee with this email address already exists.");
-      return;
-    }
+    const numberTaken = employees.some((emp) => (emp.employeeNumber || "").trim().toLowerCase() === typedNumber);
+    const emailTaken = !!typedEmail && employees.some((emp) => (emp.email || "").trim().toLowerCase() === typedEmail);
+    if (numberTaken) setNumberError("An employee record with this employee number already exists.");
+    if (emailTaken) setEmailError("An employee with this email address already exists.");
+    if (numberTaken || emailTaken) return;
 
     setSaving(true);
     const created = await addEmployee({
@@ -146,8 +152,14 @@ export default function HREmployees() {
     });
     if (!created.ok) {
       setSaving(false);
-      if (/email/i.test(created.error)) setEmailError(created.error);
-      showToast(created.error || "Could not create the employee record. Please try again.", "error");
+      // Duplicate errors are shown inline on the offending field; anything else gets a toast.
+      if (/employee number/i.test(created.error)) {
+        setNumberError(created.error);
+      } else if (/email/i.test(created.error)) {
+        setEmailError(created.error);
+      } else {
+        showToast(created.error || "Could not create the employee record. Please try again.", "error");
+      }
       return;
     }
     const id = created.id;
@@ -432,11 +444,17 @@ export default function HREmployees() {
                 required
               />
             </Field>
-            <Field label="Employee number">
+            <Field
+              label="Employee number"
+              hint={numberError ? <span className="text-danger-text">{numberError}</span> : undefined}
+            >
               <input
-                className={inputCls}
+                className={`${inputCls} ${numberError ? "border-danger-text" : ""}`}
                 value={form.employeeNumber}
-                onChange={(e) => setForm({ ...form, employeeNumber: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, employeeNumber: e.target.value });
+                  setNumberError("");
+                }}
                 required
               />
             </Field>

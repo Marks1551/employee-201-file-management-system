@@ -21,19 +21,24 @@ function mapUserRow(row: UserRow): User {
     role: row.role,
     status: row.status,
     employeeId: row.employee_id,
-    photoUrl: row.photo_url ?? null,
+    // Own profile photo first, otherwise the photo attached to their employee record.
+    photoUrl: row.photo_url || row.employee_photo_url || null,
     lastActive: fmt(row.last_active) || "Never",
     needsPasswordSetup: !!row.needs_password_setup,
   };
 }
 
+/** Users plus the photo of their linked employee record (used as a fallback avatar). */
+const USER_WITH_PHOTO_SQL =
+  "SELECT u.*, e.photo_url AS employee_photo_url FROM users u LEFT JOIN employees e ON e.id = u.employee_id";
+
 export async function listUsers(): Promise<User[]> {
-  const rows = await query<UserRow>("SELECT * FROM users ORDER BY name ASC");
+  const rows = await query<UserRow>(`${USER_WITH_PHOTO_SQL} ORDER BY u.name ASC`);
   return rows.map(mapUserRow);
 }
 
 export async function getUserPublic(id: string): Promise<User | null> {
-  const rows = await query<UserRow>("SELECT * FROM users WHERE id = ?", [id]);
+  const rows = await query<UserRow>(`${USER_WITH_PHOTO_SQL} WHERE u.id = ?`, [id]);
   return rows.length ? mapUserRow(rows[0]) : null;
 }
 
@@ -392,7 +397,7 @@ export async function requestPasswordReset(identifier: string): Promise<void> {
 
 /** Older databases don't have users.photo_url yet — add it once, automatically. */
 let photoColumnReady: Promise<void> | null = null;
-function ensurePhotoColumn(): Promise<void> {
+export function ensurePhotoColumn(): Promise<void> {
   if (!photoColumnReady) {
     photoColumnReady = (async () => {
       try {

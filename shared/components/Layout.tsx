@@ -138,9 +138,17 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
                 {currentUser ? roleLabel(currentUser.role) : ""}
               </span>
             </div>
-            <div className="w-10 h-10 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-[0.95rem] flex-shrink-0">
-              {currentUser?.initials}
-            </div>
+            {currentUser?.photoUrl ? (
+              <img
+                src={currentUser.photoUrl}
+                alt={`Photo of ${currentUser.name}`}
+                className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-[0.95rem] flex-shrink-0">
+                {currentUser?.initials}
+              </div>
+            )}
             {role === "hr" && (
               <button
                 type="button"

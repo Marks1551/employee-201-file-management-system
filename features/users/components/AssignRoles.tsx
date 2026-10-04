@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Layout from '@/shared/components/Layout';
-import { Button, RoleBadge, inputCls } from '@/shared/components/ui';
-import { TableWrap, Th, Td, CellName, CellSub } from '@/shared/components/Table';
-import Pagination from '@/shared/components/Pagination';
-import { useApp } from '@/shared/context/AppContext';
-import { useToast } from '@/shared/context/ToastContext';
-import { usePagination } from '@/shared/lib/usePagination';
-import type { User, Role } from '@/shared/types';
+import { useState } from "react";
+import Layout from "@/shared/components/Layout";
+import { Button, RoleBadge, inputCls, Avatar } from "@/shared/components/ui";
+import { TableWrap, Th, Td, CellName, CellSub } from "@/shared/components/Table";
+import Pagination from "@/shared/components/Pagination";
+import { useApp } from "@/shared/context/AppContext";
+import { useToast } from "@/shared/context/ToastContext";
+import { usePagination } from "@/shared/lib/usePagination";
+import type { User, Role } from "@/shared/types";
 
 export default function AssignRoles() {
   const { users, setUserRole } = useApp();
@@ -34,7 +34,9 @@ export default function AssignRoles() {
 
   return (
     <Layout role="admin" eyebrow="Admin › Roles" title="Assign Roles">
-      <p className="text-ink-muted mb-5">Choose a role for each account, then save your change. A role controls what a person can see and do.</p>
+      <p className="text-ink-muted mb-5">
+        Choose a role for each account, then save your change. A role controls what a person can see and do.
+      </p>
 
       <TableWrap>
         <table className="w-full border-collapse min-w-[640px]">
@@ -53,10 +55,22 @@ export default function AssignRoles() {
               return (
                 <tr key={u.id} className="hover:bg-[#FBFAF7]">
                   <Td>
-                    <CellName>{u.name}</CellName>
-                    <CellSub>{u.email}</CellSub>
+                    <div className="flex items-center gap-3">
+                      <Avatar
+                        photoUrl={u.photoUrl}
+                        initials={u.initials}
+                        color={u.role === "faculty" ? "faculty" : u.role === "hr" ? "hr" : "admin"}
+                        size="sm"
+                      />
+                      <div>
+                        <CellName>{u.name}</CellName>
+                        <CellSub>{u.email}</CellSub>
+                      </div>
+                    </div>
                   </Td>
-                  <Td><RoleBadge role={u.role} /></Td>
+                  <Td>
+                    <RoleBadge role={u.role} />
+                  </Td>
                   <Td>
                     <select
                       className={`${inputCls} min-h-[40px] max-w-[220px]`}
@@ -69,7 +83,12 @@ export default function AssignRoles() {
                     </select>
                   </Td>
                   <Td>
-                    <Button sm variant={dirty ? 'primary' : 'secondary'} disabled={!dirty} onClick={() => handleSave(u)}>
+                    <Button
+                      sm
+                      variant={dirty ? "primary" : "secondary"}
+                      disabled={!dirty}
+                      onClick={() => handleSave(u)}
+                    >
                       Save
                     </Button>
                   </Td>
@@ -93,5 +112,5 @@ export default function AssignRoles() {
 }
 
 function roleName(role: Role) {
-  return role === 'admin' ? 'System Administrator' : role === 'hr' ? 'HR Personnel' : 'Faculty';
+  return role === "admin" ? "System Administrator" : role === "hr" ? "HR Personnel" : "Faculty";
 }
