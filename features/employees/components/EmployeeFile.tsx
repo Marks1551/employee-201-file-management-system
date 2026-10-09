@@ -16,6 +16,7 @@ import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared/lib/roles";
 import { exportEmployeeProfile } from "@/shared/lib/employeeExport";
+import { getNameParts, composeFullName, composeDisplayName, type NameParts } from "@/shared/lib/names";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import type { Employee, DocumentRecord, TrainingRecord } from "@/shared/types";
 import { toInputDate, fromInputDate } from "@/shared/lib/dateFormat";
@@ -92,9 +93,35 @@ export default function HREmployeeFile() {
     setEditOpen(true);
   }
 
+  /** Edits one part of the name; the PDS name fields are the source of truth and the
+   *  combined full/display names are kept in step so they never overwrite each other on save. */
+  function setNamePart(key: keyof NameParts, value: string) {
+    setForm((f) => {
+      if (!f) return f;
+      const parts = { ...getNameParts(f), [key]: value };
+      return {
+        ...f,
+        fullName: composeFullName(parts),
+        displayName: composeDisplayName(parts),
+        pds: {
+          ...f.pds,
+          firstName: parts.firstName || null,
+          middleName: parts.middleName || null,
+          lastName: parts.lastName || null,
+          nameExtension: parts.nameExtension || null,
+        },
+      };
+    });
+  }
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (!employee || !form) return;
+    const nameParts = getNameParts(form);
+    if (!nameParts.firstName || !nameParts.lastName) {
+      showToast("First name and surname are required.", "error");
+      return;
+    }
     const result = await updateEmployee(employee.id, form);
     if (!result.ok) {
       showToast(result.error, "error");
@@ -385,38 +412,21 @@ export default function HREmployeeFile() {
       <Tabs
         tabs={[
           {
-            key: "personal",
-            label: "Personal Info",
+            key: "employment",
+            label: "Employment Info",
             content: (
               <Card>
                 <div className="grid gap-x-8 md:grid-cols-2">
                   <div>
                     <InfoRow label="Full name" value={employee.fullName} />
-                    <InfoRow label="Date of birth" value={employee.dob} />
-                    <InfoRow label="Civil status" value={employee.civilStatus} />
-                    <InfoRow label="Nationality" value={employee.nationality} last />
-                  </div>
-                  <div>
-                    <InfoRow label="Contact number" value={employee.contact} />
-                    <InfoRow label="Email address" value={employee.email} />
-                    <InfoRow label="Address" value={employee.address} last />
-                  </div>
-                </div>
-              </Card>
-            ),
-          },
-          {
-            key: "employment",
-            label: "Employment",
-            content: (
-              <Card>
-                <div className="grid gap-x-8 md:grid-cols-2">
-                  <div>
                     <InfoRow label="Employee number" value={employee.employeeNumber} />
                     <InfoRow label="Department" value={employee.department} />
                     <InfoRow label="Position" value={employee.position} />
                     <InfoRow label="Employment type" value={employee.employmentType} />
-                    <InfoRow label="Contract start" value={employee.contractStart || "—"} last />
+                    <InfoRow label="Contract start" value={employee.contractStart || "—"} />
+                    <InfoRow label="Date of birth" value={employee.dob} />
+                    <InfoRow label="Civil status" value={employee.civilStatus} />
+                    <InfoRow label="Nationality" value={employee.nationality} last />
                   </div>
                   <div>
                     <InfoRow label="Date hired" value={employee.dateHired} />
@@ -444,7 +454,10 @@ export default function HREmployeeFile() {
                         )
                       }
                     />
-                    <InfoRow label="Immediate supervisor" value={employee.supervisor} last />
+                    <InfoRow label="Immediate supervisor" value={employee.supervisor} />
+                    <InfoRow label="Contact number" value={employee.contact} />
+                    <InfoRow label="Email address" value={employee.email} />
+                    <InfoRow label="Address" value={employee.address} last />
                   </div>
                 </div>
               </Card>
@@ -835,7 +848,7 @@ export default function HREmployeeFile() {
         {form && (
           <form onSubmit={handleSave}>
             <p className="text-[0.78rem] font-bold uppercase tracking-wide text-ink-faint mb-2 mt-0">
-              Personal Information
+              Name &amp; Personal Details
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Employee number">
@@ -845,18 +858,32 @@ export default function HREmployeeFile() {
                   onChange={(e) => setForm({ ...form, employeeNumber: e.target.value })}
                 />
               </Field>
-              <Field label="Full name">
+              <Field label="Surname (Last name)">
                 <input
                   className={inputCls}
-                  value={form.fullName}
-                  onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                  value={getNameParts(form).lastName}
+                  onChange={(e) => setNamePart("lastName", e.target.value)}
                 />
               </Field>
-              <Field label="Display name">
+              <Field label="First name">
                 <input
                   className={inputCls}
-                  value={form.displayName}
-                  onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+                  value={getNameParts(form).firstName}
+                  onChange={(e) => setNamePart("firstName", e.target.value)}
+                />
+              </Field>
+              <Field label="Middle name">
+                <input
+                  className={inputCls}
+                  value={getNameParts(form).middleName}
+                  onChange={(e) => setNamePart("middleName", e.target.value)}
+                />
+              </Field>
+              <Field label="Name extension" hint="Jr., Sr., III — optional">
+                <input
+                  className={inputCls}
+                  value={getNameParts(form).nameExtension}
+                  onChange={(e) => setNamePart("nameExtension", e.target.value)}
                 />
               </Field>
               <Field label="Date of birth">

@@ -13,6 +13,8 @@ import {
 import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel, DEACTIVATION_REASONS } from "@/shared/lib/roles";
 
+const NAME_KEYS = ["firstName", "middleName", "lastName", "nameExtension"] as const;
+
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
@@ -44,7 +46,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         { status: 403 },
       );
     }
-    const incoming = (patch.pds || {}) as Record<string, unknown>;
+    const incoming = { ...((patch.pds || {}) as Record<string, unknown>) };
+    // The employee's name is HR-only: faculty can edit the rest of their PDS, but never the
+    // name fields (even if a request tries to send them).
+    for (const k of NAME_KEYS) delete incoming[k];
     const before = { ...emptyPdsDetails(), ...existing.pds } as Record<string, unknown>;
     const changed = Object.keys(incoming).some((k) => JSON.stringify(incoming[k]) !== JSON.stringify(before[k]));
     if (changed) {

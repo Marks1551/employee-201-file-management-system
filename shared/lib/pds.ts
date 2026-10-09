@@ -7,18 +7,11 @@
 import { emptyPdsDetails } from "@/shared/types";
 import type { Employee, PdsDetails } from "@/shared/types";
 import { printHtmlDocument } from "./printDocument";
+import { getNameParts, composeFullName } from "./names";
 
 function esc(value: string | number | null | undefined): string {
   const str = value === null || value === undefined || value === "" ? "" : String(value);
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/** Best-effort split of "First Middle Last" into PDS-style name fields. */
-function splitName(fullName: string): { first: string; middle: string; last: string } {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length <= 1) return { first: fullName, middle: "", last: "" };
-  if (parts.length === 2) return { first: parts[0], middle: "", last: parts[1] };
-  return { first: parts[0], middle: parts.slice(1, -1).join(" "), last: parts[parts.length - 1] };
 }
 
 function box(value: string | number | null | undefined): string {
@@ -178,8 +171,15 @@ function buildChildrenBlock(employee: Employee): string {
 }
 
 function buildHtml(employee: Employee): string {
-  const { first, middle, last } = splitName(employee.fullName);
+  // Name parts come from the same stored PDS fields the on-screen PDS form edits.
+  const { firstName: first, middleName: middle, lastName: last, nameExtension: ext } = getNameParts(employee);
   const p = employee.pds;
+  const signatureName =
+    composeFullName({ firstName: first, middleName: middle, lastName: last, nameExtension: ext }) || employee.fullName;
+  // The PDS form shows the core contact number in Mobile No. until a PDS value is entered —
+  // use the same fallback here so print matches the screen.
+  const mobile = p.mobileNo || employee.contact;
+  const residential = addrLine(p.residentialAddress);
   const generatedOn = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const cs = (employee.civilStatus || "").trim();
 
@@ -232,8 +232,8 @@ function buildHtml(employee: Employee): string {
   <div class="row">
     ${field("1. Surname", last, 2)}
     ${field("2. First Name", first, 2)}
-    ${field("Middle Name", middle, 2)}
-    ${field("Name Extension", p.nameExtension, 1)}
+    ${field("Middle Name", middle || "N/A", 2)}
+    ${field("Name Extension", ext, 1)}
   </div>
   <div class="row">
     ${field("3. Date of Birth", employee.dob, 1)}
@@ -258,11 +258,11 @@ function buildHtml(employee: Employee): string {
     ${field("14. TIN No.", p.tinNo, 1)}
     ${field("15. Agency Employee No.", p.agencyEmployeeNo, 1)}
     ${field("19. Telephone No.", p.telephoneNo, 1)}
-    ${field("20. Mobile No.", p.mobileNo, 1)}
+    ${field("20. Mobile No.", mobile, 1)}
     ${field("21. Email Address", employee.email, 2)}
   </div>
   <div class="row">
-    ${field("17. Residential Address", addrLine(p.residentialAddress), 1)}
+    ${field("17. Residential Address", residential, 1)}
   </div>
   <div class="row">
     ${field("18. Permanent Address", p.permanentSameAsResidential ? "Same as residential address" : addrLine(p.permanentAddress), 1)}
@@ -352,7 +352,7 @@ function buildHtml(employee: Employee): string {
 
   <div class="section-h">Declarations</div>
   ${yesNoLine("34a. Related within the third degree of consanguinity/affinity to the appointing or recommending authority?", p.q34RelatedThirdDegree, p.q34Details)}
-  ${yesNoLine("34b. Related within the fourth degree of consanguinity/affinity to the appointing officer (LGU)?", p.q34RelatedFourthDegree, p.q34Details)}
+  ${yesNoLine("34b. Related within the fourth degree of consanguinity/affinity to the appointing officer (LGU)?", p.q34RelatedFourthDegree, p.q34RelatedThirdDegree ? null : p.q34Details)}
   ${yesNoLine("35a. Ever been found guilty of any administrative offense?", p.q35aAdminOffense, p.q35aDetails)}
   ${yesNoLine("35b. Criminally charged before any court?", p.q35bCriminalCharge, p.q35bDetails, [
     { label: "Date Filed", value: p.q35bDateFiled },
@@ -382,7 +382,7 @@ function buildHtml(employee: Employee): string {
 
   <p style="font-size:9px; margin-top:18px;">I certify that the above information is true and correct to the best of my knowledge and belief.</p>
   <div class="sig-row">
-    <div class="sig-box"><div class="sig-line">${esc(employee.fullName)}<br/>Signature over Printed Name</div></div>
+    <div class="sig-box"><div class="sig-line">${esc(signatureName)}<br/>Signature over Printed Name</div></div>
     <div class="sig-box"><div class="sig-line">Date</div></div>
   </div>
 

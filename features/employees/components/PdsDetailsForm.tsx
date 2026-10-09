@@ -158,16 +158,41 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
     addPdsReference,
     updatePdsReference,
     deletePdsReference,
+    addEducation,
+    updateEducation,
+    deleteEducation,
+    addWorkExperience,
+    updateWorkExperience,
+    deleteWorkExperience,
+    addTraining,
+    updateTraining,
+    deleteTraining,
+    currentUser,
   } = useApp();
   const showToast = useToast();
+  // HR/admin can edit every field on the PDS, including the employee's name and the core
+  // personal details. Faculty can edit their own PDS details but never their name — and the
+  // server enforces that too.
+  const canEditCore = currentUser?.role === "hr" || currentUser?.role === "admin";
+  const coreFrom = (e: Employee) => ({
+    dob: e.dob,
+    civilStatus: e.civilStatus,
+    nationality: e.nationality,
+    email: e.email,
+  });
   const [form, setForm] = useState<PdsDetails>({ ...emptyPdsDetails(), ...employee.pds });
+  const [core, setCore] = useState(coreFrom(employee));
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!editing) setForm({ ...emptyPdsDetails(), ...employee.pds });
-  }, [employee.pds, editing]);
+    if (!editing) {
+      setForm({ ...emptyPdsDetails(), ...employee.pds });
+      setCore(coreFrom(employee));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee, editing]);
 
   function set<K extends keyof PdsDetails>(key: K, value: PdsDetails[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -184,8 +209,12 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
   }
 
   async function handleSave() {
+    if (canEditCore && (!(form.firstName || "").trim() || !(form.lastName || "").trim())) {
+      showToast("First name and surname are required.", "error");
+      return;
+    }
     setSaving(true);
-    const result = await updateEmployee(employee.id, { pds: form });
+    const result = await updateEmployee(employee.id, canEditCore ? { pds: form, ...core } : { pds: form });
     setSaving(false);
     if (!result.ok) {
       showToast(result.error || "Could not save your PDS details. Please try again.", "error");
@@ -197,11 +226,13 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
 
   function handleEdit() {
     setForm({ ...emptyPdsDetails(), ...employee.pds });
+    setCore(coreFrom(employee));
     setEditing(true);
   }
 
   function handleCancel() {
     setForm({ ...emptyPdsDetails(), ...employee.pds });
+    setCore(coreFrom(employee));
     setEditing(false);
   }
 
@@ -265,139 +296,208 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
       </div>
 
       <Card>
-        <p className={sectionTitle}>Personal Information — Additional Details</p>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field
-            label="Name"
-            hint="Set from the employee's core record — edit it from the Edit button on the 201 file header."
-          >
-            <input disabled className={inputCls} value={employee.fullName} readOnly />
-          </Field>
-          <Field label="Name Extension">
-            <input
-              disabled={d}
-              className={inputCls}
-              placeholder="Jr., Sr., III"
-              value={form.nameExtension || ""}
-              onChange={(e) => set("nameExtension", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Sex at Birth">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.sexAtBirth || ""}
-              onChange={(e) => set("sexAtBirth", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Place of Birth">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.placeOfBirth || ""}
-              onChange={(e) => set("placeOfBirth", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Height (m)">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.heightM || ""}
-              onChange={(e) => set("heightM", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Weight (kg)">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.weightKg || ""}
-              onChange={(e) => set("weightKg", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Blood Type">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.bloodType || ""}
-              onChange={(e) => set("bloodType", e.target.value || null)}
-            />
-          </Field>
-          <Field label="GSIS / UMID ID No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.gsisUmidNo || ""}
-              onChange={(e) => set("gsisUmidNo", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Pag-IBIG ID No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.pagibigNo || ""}
-              onChange={(e) => set("pagibigNo", e.target.value || null)}
-            />
-          </Field>
-          <Field label="PhilHealth No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.philhealthNo || ""}
-              onChange={(e) => set("philhealthNo", e.target.value || null)}
-            />
-          </Field>
-          <Field label="PhilSys Number (PSN)">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.philsysNumber || ""}
-              onChange={(e) => set("philsysNumber", e.target.value || null)}
-            />
-          </Field>
-          <Field label="TIN No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.tinNo || ""}
-              onChange={(e) => set("tinNo", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Agency Employee No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.agencyEmployeeNo || ""}
-              onChange={(e) => set("agencyEmployeeNo", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Dual Citizenship — Country" hint="If applicable">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.dualCitizenshipCountry || ""}
-              onChange={(e) => set("dualCitizenshipCountry", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Telephone No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.telephoneNo || ""}
-              onChange={(e) => set("telephoneNo", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Mobile No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.mobileNo || ""}
-              onChange={(e) => set("mobileNo", e.target.value || null)}
-            />
-          </Field>
+        <p className={sectionTitle}>I. Personal Information</p>
+        <div className="flex flex-col gap-3">
+          {/* Rows below mirror the printed PDS (CS Form 212, Section I) field for field. */}
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="1. Surname" hint={!canEditCore ? "Name can only be changed by HR." : undefined}>
+              <input
+                disabled={d || !canEditCore}
+                className={inputCls}
+                value={form.lastName || ""}
+                onChange={(e) => set("lastName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="2. First Name">
+              <input
+                disabled={d || !canEditCore}
+                className={inputCls}
+                value={form.firstName || ""}
+                onChange={(e) => set("firstName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Middle Name">
+              <input
+                disabled={d || !canEditCore}
+                className={inputCls}
+                value={form.middleName || ""}
+                onChange={(e) => set("middleName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Name Extension">
+              <input
+                disabled={d || !canEditCore}
+                className={inputCls}
+                placeholder="Jr., Sr., III"
+                value={form.nameExtension || ""}
+                onChange={(e) => set("nameExtension", e.target.value || null)}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="3. Date of Birth">
+              <input
+                type="date"
+                disabled={d || !canEditCore}
+                className={inputCls}
+                max={new Date().toISOString().slice(0, 10)}
+                value={toInputDate(core.dob)}
+                onChange={(e) => setCore((c) => ({ ...c, dob: fromInputDate(e.target.value) }))}
+              />
+            </Field>
+            <Field label="4. Place of Birth">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.placeOfBirth || ""}
+                onChange={(e) => set("placeOfBirth", e.target.value || null)}
+              />
+            </Field>
+            <Field label="5. Sex at Birth">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.sexAtBirth || ""}
+                onChange={(e) => set("sexAtBirth", e.target.value || null)}
+              />
+            </Field>
+            <Field label="6. Civil Status">
+              <input
+                disabled={d || !canEditCore}
+                className={inputCls}
+                placeholder="Single, Married, Widowed…"
+                value={core.civilStatus || ""}
+                onChange={(e) => setCore((c) => ({ ...c, civilStatus: e.target.value || null }))}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-5">
+            <Field label="7. Height (m)">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.heightM || ""}
+                onChange={(e) => set("heightM", e.target.value || null)}
+              />
+            </Field>
+            <Field label="8. Weight (kg)">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.weightKg || ""}
+                onChange={(e) => set("weightKg", e.target.value || null)}
+              />
+            </Field>
+            <Field label="9. Blood Type">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.bloodType || ""}
+                onChange={(e) => set("bloodType", e.target.value || null)}
+              />
+            </Field>
+            <Field label="16. Citizenship">
+              <input
+                disabled={d || !canEditCore}
+                className={inputCls}
+                value={core.nationality || ""}
+                onChange={(e) => setCore((c) => ({ ...c, nationality: e.target.value || null }))}
+              />
+            </Field>
+            <Field label="Dual Citizenship Country" hint="If applicable">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.dualCitizenshipCountry || ""}
+                onChange={(e) => set("dualCitizenshipCountry", e.target.value || null)}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="10. GSIS / UMID ID No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.gsisUmidNo || ""}
+                onChange={(e) => set("gsisUmidNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="11. Pag-IBIG ID No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.pagibigNo || ""}
+                onChange={(e) => set("pagibigNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="12. PhilHealth No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.philhealthNo || ""}
+                onChange={(e) => set("philhealthNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="13. PhilSys Number (PSN)">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.philsysNumber || ""}
+                onChange={(e) => set("philsysNumber", e.target.value || null)}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-5">
+            <Field label="14. TIN No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.tinNo || ""}
+                onChange={(e) => set("tinNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="15. Agency Employee No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.agencyEmployeeNo || ""}
+                onChange={(e) => set("agencyEmployeeNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="19. Telephone No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.telephoneNo || ""}
+                onChange={(e) => set("telephoneNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="20. Mobile No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.mobileNo ?? employee.contact ?? ""}
+                onChange={(e) => set("mobileNo", e.target.value || null)}
+              />
+            </Field>
+            <Field label="21. Email Address">
+              <input
+                type="email"
+                disabled={d || !canEditCore}
+                className={inputCls}
+                value={core.email || ""}
+                onChange={(e) => setCore((c) => ({ ...c, email: e.target.value || null }))}
+              />
+            </Field>
+          </div>
         </div>
         <div className="mt-4">
           <AddressFields
-            label="Residential Address"
+            label="17. Residential Address"
             value={form.residentialAddress}
             onChange={(a) => set("residentialAddress", a)}
             disabled={d}
@@ -421,7 +521,7 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           )}
           {!form.permanentSameAsResidential && (
             <AddressFields
-              label="Permanent Address"
+              label="18. Permanent Address"
               value={form.permanentAddress}
               onChange={(a) => set("permanentAddress", a)}
               disabled={d}
@@ -432,76 +532,80 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
 
       <Card>
         <p className={sectionTitle}>II. Family Background</p>
-        <p className="text-[0.82rem] font-semibold text-ink mb-2">Spouse</p>
-        <div className="grid gap-3 md:grid-cols-3 mb-4">
-          <Field label="Surname">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseSurname || ""}
-              onChange={(e) => set("spouseSurname", e.target.value || null)}
-            />
-          </Field>
-          <Field label="First Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseFirstName || ""}
-              onChange={(e) => set("spouseFirstName", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Middle Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseMiddleName || ""}
-              onChange={(e) => set("spouseMiddleName", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Name Extension">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseNameExtension || ""}
-              onChange={(e) => set("spouseNameExtension", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Occupation">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseOccupation || ""}
-              onChange={(e) => set("spouseOccupation", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Employer / Business Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseEmployer || ""}
-              onChange={(e) => set("spouseEmployer", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Business Address">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseBusinessAddress || ""}
-              onChange={(e) => set("spouseBusinessAddress", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Telephone No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.spouseTelephone || ""}
-              onChange={(e) => set("spouseTelephone", e.target.value || null)}
-            />
-          </Field>
+        {/* Rows below mirror the printed PDS (CS Form 212, Section II) field for field. */}
+        <div className="flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="22. Spouse's Surname">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseSurname || ""}
+                onChange={(e) => set("spouseSurname", e.target.value || null)}
+              />
+            </Field>
+            <Field label="First Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseFirstName || ""}
+                onChange={(e) => set("spouseFirstName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Middle Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseMiddleName || ""}
+                onChange={(e) => set("spouseMiddleName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Name Extension">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseNameExtension || ""}
+                onChange={(e) => set("spouseNameExtension", e.target.value || null)}
+              />
+            </Field>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="Occupation">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseOccupation || ""}
+                onChange={(e) => set("spouseOccupation", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Employer / Business Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseEmployer || ""}
+                onChange={(e) => set("spouseEmployer", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Business Address">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseBusinessAddress || ""}
+                onChange={(e) => set("spouseBusinessAddress", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Telephone No.">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.spouseTelephone || ""}
+                onChange={(e) => set("spouseTelephone", e.target.value || null)}
+              />
+            </Field>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[0.82rem] font-semibold text-ink m-0">Children</p>
+        <div className="flex items-center justify-between mt-4 mb-2">
+          <p className="text-[0.82rem] font-semibold text-ink m-0">23. Name of Children (Date of Birth)</p>
           {!d && (
             <Button type="button" variant="secondary" sm onClick={addChild}>
               <Plus size={14} />
@@ -538,69 +642,104 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           </div>
         ))}
 
-        <div className="grid gap-3 md:grid-cols-3 mt-4 mb-4">
-          <p className="text-[0.82rem] font-semibold text-ink m-0 md:col-span-3">Father</p>
-          <Field label="Surname">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.fatherSurname || ""}
-              onChange={(e) => set("fatherSurname", e.target.value || null)}
-            />
-          </Field>
-          <Field label="First Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.fatherFirstName || ""}
-              onChange={(e) => set("fatherFirstName", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Middle Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.fatherMiddleName || ""}
-              onChange={(e) => set("fatherMiddleName", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Name Extension">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.fatherNameExtension || ""}
-              onChange={(e) => set("fatherNameExtension", e.target.value || null)}
-            />
-          </Field>
+        <div className="flex flex-col gap-3 mt-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="24. Father's Surname">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.fatherSurname || ""}
+                onChange={(e) => set("fatherSurname", e.target.value || null)}
+              />
+            </Field>
+            <Field label="First Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.fatherFirstName || ""}
+                onChange={(e) => set("fatherFirstName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Middle Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.fatherMiddleName || ""}
+                onChange={(e) => set("fatherMiddleName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Name Extension">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.fatherNameExtension || ""}
+                onChange={(e) => set("fatherNameExtension", e.target.value || null)}
+              />
+            </Field>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Field label="25. Mother's Maiden Surname">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.motherMaidenSurname || ""}
+                onChange={(e) => set("motherMaidenSurname", e.target.value || null)}
+              />
+            </Field>
+            <Field label="First Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.motherFirstName || ""}
+                onChange={(e) => set("motherFirstName", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Middle Name">
+              <input
+                disabled={d}
+                className={inputCls}
+                value={form.motherMiddleName || ""}
+                onChange={(e) => set("motherMiddleName", e.target.value || null)}
+              />
+            </Field>
+          </div>
         </div>
+      </Card>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <p className="text-[0.82rem] font-semibold text-ink m-0 md:col-span-3">Mother&apos;s Maiden Name</p>
-          <Field label="Surname">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.motherMaidenSurname || ""}
-              onChange={(e) => set("motherMaidenSurname", e.target.value || null)}
-            />
-          </Field>
-          <Field label="First Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.motherFirstName || ""}
-              onChange={(e) => set("motherFirstName", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Middle Name">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.motherMiddleName || ""}
-              onChange={(e) => set("motherMiddleName", e.target.value || null)}
-            />
-          </Field>
-        </div>
+      <Card>
+        <p className={sectionTitle}>III. Educational Background</p>
+        <RecordManager
+          items={employee.education}
+          typeLabel="education record"
+          addButtonLabel="Add Education"
+          emptyMessage="No educational background on file yet."
+          employeeName={employee.displayName}
+          itemLabel={(r) => r.schoolName}
+          fields={[
+            {
+              key: "level",
+              label: "Level",
+              type: "select",
+              options: ["Elementary", "Secondary", "Vocational / Trade", "College", "Graduate Studies"],
+            },
+            { key: "schoolName", label: "School / institution", required: true },
+            { key: "degree", label: "Degree / course", hint: "e.g. BS Computer Science" },
+            { key: "yearGraduated", label: "Year graduated", hint: "e.g. 2015" },
+            { key: "honors", label: "Honors / awards", hint: "e.g. Cum Laude (optional)" },
+          ]}
+          emptyForm={{ level: "College", schoolName: "", degree: "", yearGraduated: "", honors: "" }}
+          columns={[
+            { key: "level", label: "Level" },
+            { key: "schoolName", label: "School" },
+            { key: "degree", label: "Degree / Course" },
+            { key: "yearGraduated", label: "Year Graduated" },
+            { key: "honors", label: "Honors" },
+          ]}
+          onAdd={(data) => addEducation(employee.id, data)}
+          onUpdate={(recordId, patch) => updateEducation(employee.id, recordId, patch)}
+          onDelete={(recordId) => deleteEducation(employee.id, recordId)}
+          readOnly={readOnly}
+        />
       </Card>
 
       <Card>
@@ -635,6 +774,64 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
       </Card>
 
       <Card>
+        <p className={sectionTitle}>V. Work Experience</p>
+        <RecordManager
+          items={employee.workExperience}
+          typeLabel="work experience record"
+          addButtonLabel="Add Work Experience"
+          emptyMessage="No prior work experience on file yet."
+          employeeName={employee.displayName}
+          itemLabel={(r) => `${r.position ? `${r.position} at ` : ""}${r.company}`}
+          fields={[
+            { key: "company", label: "Company / employer", required: true },
+            { key: "position", label: "Position" },
+            { key: "fromDate", label: "From", type: "date" },
+            { key: "toDate", label: "To", type: "date", hint: "Leave blank if current" },
+            {
+              key: "statusOfAppointment",
+              label: "Status of Appointment",
+              hint: "e.g. Permanent, Contractual, Casual",
+            },
+            {
+              key: "govtService",
+              label: "Government Service?",
+              type: "select",
+              options: [
+                { value: "", label: "—" },
+                { value: "Y", label: "Yes" },
+                { value: "N", label: "No" },
+              ],
+            },
+            {
+              key: "description",
+              label: "Description",
+              type: "textarea",
+              hint: "Key responsibilities (optional)",
+            },
+          ]}
+          emptyForm={{
+            company: "",
+            position: "",
+            fromDate: "",
+            toDate: "",
+            statusOfAppointment: "",
+            govtService: "",
+            description: "",
+          }}
+          columns={[
+            { key: "company", label: "Company" },
+            { key: "position", label: "Position" },
+            { key: "fromDate", label: "From" },
+            { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
+          ]}
+          onAdd={(data) => addWorkExperience(employee.id, data)}
+          onUpdate={(recordId, patch) => updateWorkExperience(employee.id, recordId, patch)}
+          onDelete={(recordId) => deleteWorkExperience(employee.id, recordId)}
+          readOnly={readOnly}
+        />
+      </Card>
+
+      <Card>
         <p className={sectionTitle}>VI. Voluntary Work / Involvement</p>
         <RecordManager
           items={employee.voluntaryWork}
@@ -661,6 +858,60 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           onAdd={(data) => addVoluntaryWork(employee.id, data)}
           onUpdate={(recordId, patch) => updateVoluntaryWork(employee.id, recordId, patch)}
           onDelete={(recordId) => deleteVoluntaryWork(employee.id, recordId)}
+          readOnly={readOnly}
+        />
+      </Card>
+
+      <Card>
+        <p className={sectionTitle}>
+          VII. Learning and Development (L&amp;D) Interventions / Training Programs Attended
+        </p>
+        <RecordManager
+          items={employee.training}
+          typeLabel="training record"
+          addButtonLabel="Add Training"
+          emptyMessage="No training records on file yet."
+          employeeName={employee.displayName}
+          itemLabel={(t) => t.course}
+          fields={[
+            { key: "course", label: "Course / training title", required: true },
+            { key: "provider", label: "Provider" },
+            { key: "fromDate", label: "From", type: "date" },
+            { key: "completed", label: "To / Date completed", type: "date" },
+            { key: "hours", label: "Number of hours" },
+            { key: "ldType", label: "Type of L&D", hint: "Managerial, Supervisory, Technical, etc." },
+            { key: "conductedBy", label: "Conducted / Sponsored by" },
+            {
+              key: "certStatus",
+              label: "Certificate status",
+              type: "select",
+              options: [
+                { value: "on-file", label: "On file" },
+                { value: "expiring", label: "Expiring soon" },
+              ],
+            },
+          ]}
+          emptyForm={{
+            course: "",
+            provider: "",
+            fromDate: "",
+            completed: "",
+            hours: "",
+            ldType: "",
+            conductedBy: "",
+            certStatus: "on-file",
+          }}
+          columns={[
+            { key: "course", label: "Training / Course" },
+            { key: "fromDate", label: "From" },
+            { key: "completed", label: "To" },
+            { key: "hours", label: "Hours" },
+            { key: "ldType", label: "Type of L&D" },
+            { key: "conductedBy", label: "Conducted / Sponsored by" },
+          ]}
+          onAdd={(data) => addTraining(employee.id, data)}
+          onUpdate={(recordId, patch) => updateTraining(employee.id, recordId, patch)}
+          onDelete={(recordId) => deleteTraining(employee.id, recordId)}
           readOnly={readOnly}
         />
       </Card>

@@ -107,12 +107,14 @@ export default function Faculty201File() {
         tabs={[
           {
             key: "info",
-            label: "Personal & Employment Info",
+            label: "Employment Info",
             content: (
               <Card>
                 <div className="grid gap-x-8 md:grid-cols-2">
                   <div>
                     <InfoRow label="Full name" value={currentEmployee.fullName} />
+                    <InfoRow label="Date of birth" value={currentEmployee.dob} />
+                    <InfoRow label="Civil status" value={currentEmployee.civilStatus} />
                     <InfoRow label="Contact number" value={currentEmployee.contact} />
                     <InfoRow label="Email address" value={currentEmployee.email} last />
                   </div>

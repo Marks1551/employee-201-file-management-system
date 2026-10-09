@@ -1,46 +1,33 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireHrOrOwnFaculty } from "@/shared/server/api-helpers";
 import { notifyPdsUpdatedBy } from "@/features/notifications/server/service";
-import { getEmployee, updateEducation, deleteEducation } from "@/features/employees/server/service";
+import { getEmployee, addWorkExperience } from "@/features/employees/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel } from "@/shared/lib/roles";
 
-type RouteParams = { params: Promise<{ id: string; educationId: string }> };
+type RouteParams = { params: Promise<{ id: string }> };
 
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const { id, educationId } = await params;
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
   const user = await requireHrOrOwnFaculty(id);
   if (user instanceof NextResponse) return user;
   const employee = await getEmployee(id);
   if (!employee) return NextResponse.json({ error: "Employee not found." }, { status: 404 });
 
-  const patch = await request.json();
-  await updateEducation(id, educationId, patch);
+  const raw = await request.json();
+  // Blank inputs are stored as NULL (an empty string is not valid for columns like Government Service Y/N).
+  const data = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === "" ? null : v]));
+  if (!data.company || !String(data.company).trim()) {
+    return NextResponse.json({ error: "Company / employer is required." }, { status: 400 });
+  }
+
+  await addWorkExperience(id, data as Parameters<typeof addWorkExperience>[1]);
   await addAuditLog(
     user.name,
     roleLabel(user.role),
-    `Updated an education record for ${employee.displayName} (#${employee.employeeNumber})`,
+    `Added a work experience record for ${employee.displayName} (#${employee.employeeNumber})`,
   );
-  await notifyPdsUpdatedBy(user, id, "Educational background");
-
-  const updated = await getEmployee(id);
-  return NextResponse.json({ employee: updated });
-}
-
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const { id, educationId } = await params;
-  const user = await requireHrOrOwnFaculty(id);
-  if (user instanceof NextResponse) return user;
-  const employee = await getEmployee(id);
-  if (!employee) return NextResponse.json({ error: "Employee not found." }, { status: 404 });
-
-  await deleteEducation(id, educationId);
-  await addAuditLog(
-    user.name,
-    roleLabel(user.role),
-    `Removed an education record for ${employee.displayName} (#${employee.employeeNumber})`,
-  );
-  await notifyPdsUpdatedBy(user, id, "Educational background");
+  await notifyPdsUpdatedBy(user, id, "Work experience");
 
   const updated = await getEmployee(id);
   return NextResponse.json({ employee: updated });

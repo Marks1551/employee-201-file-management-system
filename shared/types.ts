@@ -155,7 +155,11 @@ export function emptyPdsAddress(): PdsAddress {
  *  fields only; repeatable sections (eligibility, voluntary work, references)
  *  are their own record lists on Employee, same pattern as education/training. */
 export interface PdsDetails {
-  // I. Personal Information extras
+  // I. Personal Information — name, captured as separate PDS fields.
+  // Employee.fullName / displayName are derived from these whenever they change.
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
   nameExtension: string | null;
   sexAtBirth: string | null;
   placeOfBirth: string | null;
@@ -234,6 +238,9 @@ export interface PdsDetails {
 
 export function emptyPdsDetails(): PdsDetails {
   return {
+    firstName: null,
+    middleName: null,
+    lastName: null,
     nameExtension: null,
     sexAtBirth: null,
     placeOfBirth: null,
@@ -343,6 +350,11 @@ export interface Employee {
  *  the model layer fills in sensible defaults for missing values. */
 export interface EmployeeInput {
   employeeNumber?: string;
+  /** Name parts — on create, the server derives fullName/displayName from these. */
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  nameExtension?: string;
   fullName?: string;
   displayName?: string;
   dob?: string | null;

@@ -13,13 +13,16 @@ import { useToast } from "@/shared/context/ToastContext";
 import { usePagination } from "@/shared/lib/usePagination";
 import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared/lib/roles";
 import { parsePdsImportText } from "@/shared/lib/pds";
+import { composeFullName, composeDisplayName } from "@/shared/lib/names";
 import { toInputDate, fromInputDate } from "@/shared/lib/dateFormat";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import type { Employee, PdsDetails } from "@/shared/types";
 
 const emptyForm = {
-  displayName: "",
-  fullName: "",
+  lastName: "",
+  firstName: "",
+  middleName: "",
+  nameExtension: "",
   employeeNumber: "",
   department: DEPARTMENTS[0] as string,
   position: "",
@@ -131,7 +134,8 @@ export default function HREmployees() {
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!form.displayName.trim() || !form.employeeNumber.trim()) return;
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.employeeNumber.trim()) return;
+    const displayName = composeDisplayName(form);
     setEmailError("");
     setNumberError("");
 
@@ -145,10 +149,19 @@ export default function HREmployees() {
     if (numberTaken || emailTaken) return;
 
     setSaving(true);
+    // Name is saved as separate PDS fields (Surname / First / Middle / Extension); the server
+    // derives the full and display names from them.
     const created = await addEmployee({
       ...form,
-      fullName: form.fullName || form.displayName,
-      ...(pdsData ? { pds: pdsData } : {}),
+      fullName: composeFullName(form),
+      displayName,
+      pds: {
+        ...(pdsData || {}),
+        firstName: form.firstName.trim(),
+        middleName: form.middleName.trim() || null,
+        lastName: form.lastName.trim(),
+        nameExtension: form.nameExtension.trim() || null,
+      },
     });
     if (!created.ok) {
       setSaving(false);
@@ -185,7 +198,7 @@ export default function HREmployees() {
     }
     setSaving(false);
     closeAdd();
-    showToast(`Employee record created for ${form.displayName}.`);
+    showToast(`Employee record created for ${displayName}.`);
   }
 
   function openDeactivate(emp: Employee) {
@@ -354,14 +367,8 @@ export default function HREmployees() {
                 <Avatar
                   photoUrl={photoPreview}
                   initials={
-                    form.displayName
-                      ? form.displayName
-                          .trim()
-                          .split(/\s+/)
-                          .map((p) => p[0])
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()
+                    form.firstName.trim() || form.lastName.trim()
+                      ? `${form.firstName.trim()[0] || ""}${form.lastName.trim()[0] || ""}`.toUpperCase()
                       : "?"
                   }
                   color="hr"
@@ -436,12 +443,34 @@ export default function HREmployees() {
             </div>
           </Field>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Full name">
+            <Field label="Last name (Surname)">
               <input
                 className={inputCls}
-                value={form.displayName}
-                onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
                 required
+              />
+            </Field>
+            <Field label="First name">
+              <input
+                className={inputCls}
+                value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                required
+              />
+            </Field>
+            <Field label="Middle name" hint="Leave blank if none (N/A)">
+              <input
+                className={inputCls}
+                value={form.middleName}
+                onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+              />
+            </Field>
+            <Field label="Name extension" hint="Jr., Sr., III — optional">
+              <input
+                className={inputCls}
+                value={form.nameExtension}
+                onChange={(e) => setForm({ ...form, nameExtension: e.target.value })}
               />
             </Field>
             <Field

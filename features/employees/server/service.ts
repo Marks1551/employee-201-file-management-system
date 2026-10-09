@@ -35,6 +35,7 @@ import type {
   PdsDetails,
 } from "@/shared/types";
 import { emptyPdsDetails } from "@/shared/types";
+import { splitName, composeFullName, composeDisplayName } from "@/shared/lib/names";
 
 export { syncNotificationsForEmployee };
 
@@ -59,6 +60,17 @@ function mapEmployeeRow(
     } catch {
       pds = emptyPdsDetails();
     }
+  }
+  // Records created before the name was split into separate fields: fill the
+  // parts in from the stored full name so every screen (and the PDS print) sees them.
+  if (!pds.firstName && !pds.lastName) {
+    const legacy = splitName(row.full_name || row.display_name || "");
+    pds = {
+      ...pds,
+      firstName: legacy.firstName || null,
+      middleName: legacy.middleName || null,
+      lastName: legacy.lastName || null,
+    };
   }
   return {
     id: row.id,
@@ -469,7 +481,7 @@ export async function updateEmployee(
  *  (rather than overwriting it), so the PDS Details form can be saved one
  *  section at a time without clobbering the rest. */
 export async function updateEmployeePds(id: string, patch: Partial<PdsDetails>): Promise<void> {
-  const rows = await query<EmployeeRow>("SELECT pds_details FROM employees WHERE id = ?", [id]);
+  const rows = await query<EmployeeRow>("SELECT pds_details, full_name FROM employees WHERE id = ?", [id]);
   let current: Partial<PdsDetails> = {};
   if (rows[0]?.pds_details) {
     try {
@@ -480,6 +492,29 @@ export async function updateEmployeePds(id: string, patch: Partial<PdsDetails>):
   }
   const merged = { ...emptyPdsDetails(), ...current, ...patch };
   await execute("UPDATE employees SET pds_details = ? WHERE id = ?", [JSON.stringify(merged), id]);
+
+  // The PDS name parts are the source of truth for the name — keep the core
+  // full_name / display_name / initials columns in step so lists, headers and
+  // the login account name all show the same thing.
+  const nameKeys = ["firstName", "middleName", "lastName", "nameExtension"] as const;
+  if (nameKeys.some((k) => k in patch) && (merged.firstName || merged.lastName)) {
+    const parts = {
+      firstName: merged.firstName || "",
+      middleName: merged.middleName || "",
+      lastName: merged.lastName || "",
+      nameExtension: merged.nameExtension || "",
+    };
+    const displayName = composeDisplayName(parts);
+    // Nothing to sync if the composed name already matches (e.g. an HR save of a legacy record
+    // that only filled in the split parts) — avoids rewriting existing display names.
+    if (composeFullName(parts) === (rows[0]?.full_name || "").trim().replace(/\s+/g, " ")) return;
+    await execute("UPDATE employees SET full_name = ?, display_name = ?, initials = ? WHERE id = ?", [
+      composeFullName(parts),
+      displayName,
+      initials(displayName),
+      id,
+    ]);
+  }
 }
 
 /** Sets an employee's file to active or inactive. When deactivating, `reason`
