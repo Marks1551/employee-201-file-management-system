@@ -87,7 +87,7 @@ export default function SubmitDocument() {
                 ))}
               </select>
             </Field>
-            <Field label="Choose file" htmlFor={fileInputId} hint="Accepted formats: PDF, JPG, PNG. Maximum 5 MB.">
+            <Field label="Choose file" htmlFor={fileInputId} hint="Accepted formats: PDF, JPG, PNG. Maximum 10 MB.">
               <button
                 type="button"
                 id={fileInputId}

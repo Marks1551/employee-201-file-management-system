@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     } catch (err) {
       console.error("Chat attachment upload failed:", err);
       return NextResponse.json(
-        { error: `The file could not be uploaded right now. (Allowed: ${ALLOWED_ATTACHMENT_LABEL}, up to 5MB.)` },
+        { error: `The file could not be uploaded right now. (Allowed: ${ALLOWED_ATTACHMENT_LABEL}, up to 10MB.)` },
         { status: 500 },
       );
     }

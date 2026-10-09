@@ -14,7 +14,7 @@ const eyebrows: Record<Role, string> = {
   faculty: "Faculty › Account",
 };
 
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 
 /** Admin and HR edit their own display name and profile picture here.
@@ -60,7 +60,7 @@ export default function ProfilePage({ role }: { role: Role }) {
       return;
     }
     if (file.size > MAX_SIZE) {
-      showToast("Photo must be smaller than 5MB.", "error");
+      showToast("Photo must be smaller than 10MB.", "error");
       return;
     }
     setPhotoBusy("upload");
@@ -137,7 +137,7 @@ export default function ProfilePage({ role }: { role: Role }) {
                 )}
               </Button>
             )}
-            <span className="text-[0.78rem] text-ink-faint">JPG, PNG or WEBP, up to 5MB.</span>
+            <span className="text-[0.78rem] text-ink-faint">JPG, PNG or WEBP, up to 10MB.</span>
           </div>
         </div>
       </Card>

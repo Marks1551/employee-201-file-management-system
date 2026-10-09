@@ -10,7 +10,7 @@ const ALLOWED_DOC_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
 };
-const MAX_DOC_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_DOC_SIZE = 10 * 1024 * 1024; // 10MB
 
 export type SaveDocumentFileResult = { url: string; name: string; type: string; error?: undefined } | { error: string };
 
@@ -32,7 +32,7 @@ export async function saveDocumentFile(
     return { error: "Please upload a PDF, JPG, PNG, or WEBP file." };
   }
   if (file.size > MAX_DOC_SIZE) {
-    return { error: "File must be smaller than 5MB." };
+    return { error: "File must be smaller than 10MB." };
   }
 
   const prefix = `documents/${subDir}/${baseName}.`;

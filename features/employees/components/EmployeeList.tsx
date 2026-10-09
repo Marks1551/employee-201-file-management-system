@@ -397,7 +397,7 @@ export default function HREmployees() {
                     Remove
                   </button>
                 )}
-                <p className="text-[0.8rem] text-ink-faint mt-1.5 mb-0">JPG, PNG, or WEBP, up to 5MB.</p>
+                <p className="text-[0.8rem] text-ink-faint mt-1.5 mb-0">JPG, PNG, or WEBP, up to 10MB.</p>
               </div>
               <input
                 ref={photoInputRef}

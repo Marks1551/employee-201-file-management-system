@@ -191,8 +191,12 @@ function buildHtml(employee: Employee): string {
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 0; font-size: 10.5px; }
-  .page { padding: 22px 28px; page-break-after: always; }
-  .page:last-child { page-break-after: auto; }
+  /* One continuous sheet: sections flow straight on from each other, so there are no big
+     blank gaps. The browser only starts a new page when the content actually runs out of room. */
+  .page { padding: 22px 28px; }
+  .section-h, .lbl { break-after: avoid; page-break-after: avoid; }
+  tr, .row, .decl-row, .sig-row { break-inside: avoid; page-break-inside: avoid; }
+  thead { display: table-header-group; }
   .title { text-align: center; font-weight: 700; font-size: 1.05rem; letter-spacing: 0.04em; margin: 0 0 4px; text-transform: uppercase; }
   .warning { font-size: 8.5px; text-align: center; color: #444; margin: 0 0 10px; line-height: 1.4; }
   .section-h {
@@ -302,10 +306,7 @@ function buildHtml(employee: Employee): string {
     <tbody>${buildEducationRows(employee)}</tbody>
   </table>
 
-  <p class="page-footer">CS Form 212 (Revised 2025) — Page 1 of 4 &nbsp;·&nbsp; Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)} &nbsp;·&nbsp; Generated ${esc(generatedOn)}</p>
-</div>
 
-<div class="page">
   <div class="section-h">IV. Civil Service Eligibility</div>
   <table>
     <thead><tr><th>27. Eligibility</th><th>Rating</th><th>Date of Exam / Conferment</th><th>Place of Exam / Conferment</th><th>License Number / Validity</th></tr></thead>
@@ -319,10 +320,7 @@ function buildHtml(employee: Employee): string {
     <tbody>${buildWorkExperienceRows(employee)}</tbody>
   </table>
 
-  <p class="page-footer">CS Form 212 (Revised 2025) — Page 2 of 4 &nbsp;·&nbsp; Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)}</p>
-</div>
 
-<div class="page">
   <div class="section-h">VI. Voluntary Work or Involvement</div>
   <table>
     <thead><tr><th>Name & Address of Organization</th><th>Inclusive Dates</th><th>Number of Hours</th><th>Position / Nature of Work</th></tr></thead>
@@ -335,10 +333,7 @@ function buildHtml(employee: Employee): string {
     <tbody>${buildTrainingRows(employee)}</tbody>
   </table>
 
-  <p class="page-footer">CS Form 212 (Revised 2025) — Page 3 of 4 &nbsp;·&nbsp; Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)}</p>
-</div>
 
-<div class="page">
   <div class="section-h">VIII. Other Information</div>
   <div class="row">
     ${field("33a. Special Skills and Hobbies", p.specialSkillsHobbies, 1)}
@@ -386,7 +381,7 @@ function buildHtml(employee: Employee): string {
     <div class="sig-box"><div class="sig-line">Date</div></div>
   </div>
 
-  <p class="page-footer">CS Form 212 (Revised 2025) — Page 4 of 4 &nbsp;·&nbsp; Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)} &nbsp;·&nbsp; Generated ${esc(generatedOn)}</p>
+  <p class="page-footer">CS Form 212 (Revised 2025) — Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)} &nbsp;·&nbsp; Generated ${esc(generatedOn)}</p>
 </div>
 
 </body>

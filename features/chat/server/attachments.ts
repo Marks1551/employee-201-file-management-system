@@ -4,7 +4,7 @@
 import { randomUUID } from "crypto";
 import { putObject } from "@/shared/server/r2";
 
-export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024; // 5MB, same limit as 201-file documents
+export const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB, same limit as 201-file documents
 
 /** Allowed extensions -> the content type we store/serve them with. We deliberately do NOT trust
  *  the browser-supplied file.type, and we leave out anything that can run in a browser (html, svg, js). */
@@ -84,7 +84,7 @@ export async function saveChatAttachment(file: File): Promise<SavedAttachment | 
     return { error: `That file type isn't allowed. You can send ${ALLOWED_ATTACHMENT_LABEL}.` };
   }
   if (file.size === 0) return { error: "That file is empty." };
-  if (file.size > MAX_ATTACHMENT_SIZE) return { error: "File must be smaller than 5MB." };
+  if (file.size > MAX_ATTACHMENT_SIZE) return { error: "File must be smaller than 10MB." };
 
   const bytes = Buffer.from(await file.arrayBuffer());
   if (!contentMatchesExtension(ext, bytes)) {

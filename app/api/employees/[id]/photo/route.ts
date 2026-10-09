@@ -6,7 +6,7 @@ import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel } from "@/shared/lib/roles";
 
 const KEY_PREFIX = "employees";
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Please upload a JPG, PNG, or WEBP image." }, { status: 400 });
   }
   if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: "Photo must be smaller than 5MB." }, { status: 400 });
+    return NextResponse.json({ error: "Photo must be smaller than 10MB." }, { status: 400 });
   }
 
   await removeExistingPhotoObjects(id);

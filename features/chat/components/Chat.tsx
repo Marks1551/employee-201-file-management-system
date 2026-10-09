@@ -35,7 +35,7 @@ interface Message {
 }
 
 const MAX_LEN = 2000;
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB — must match the server limit
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — must match the server limit
 const ALLOWED_EXTENSIONS = [
   "jpg",
   "jpeg",
@@ -160,7 +160,7 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
       return;
     }
     if (picked.size > MAX_FILE_SIZE) {
-      setError("File must be smaller than 5MB.");
+      setError("File must be smaller than 10MB.");
       return;
     }
     setError("");
