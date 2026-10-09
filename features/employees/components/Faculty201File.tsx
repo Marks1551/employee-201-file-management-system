@@ -9,6 +9,7 @@ import { useApp } from "@/shared/context/AppContext";
 import { exportPds } from "@/shared/lib/pds";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
+import RecordManager from "@/features/employees/components/RecordManager";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
 
 interface ReadOnlyColumn<T> {
@@ -52,7 +53,16 @@ function readOnlyTable<T extends { id: string }>(items: T[], columns: ReadOnlyCo
 }
 
 export default function Faculty201File() {
-  const { currentEmployee, ready } = useApp();
+  const {
+    currentEmployee,
+    ready,
+    addEducation,
+    updateEducation,
+    deleteEducation,
+    addWorkExperience,
+    updateWorkExperience,
+    deleteWorkExperience,
+  } = useApp();
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="My 201 File" />;
   const { missingCount, rejectedCount, isComplete } = documentCompletion(currentEmployee.documents);
@@ -89,7 +99,8 @@ export default function Faculty201File() {
       </Card>
 
       <p className="text-ink-muted text-[0.86rem] mb-5">
-        This is your personal record. If anything looks incorrect, please contact HR — only HR can edit these details.
+        This is your personal record. You can update your own PDS details, educational background and work experience
+        &mdash; HR is notified whenever you do. For anything else that looks incorrect, please contact HR.
       </p>
 
       <Tabs
@@ -180,16 +191,38 @@ export default function Faculty201File() {
           {
             key: "education",
             label: "Educational Background",
-            content: readOnlyTable(
-              currentEmployee.education,
-              [
-                { key: "level", label: "Level" },
-                { key: "schoolName", label: "School" },
-                { key: "degree", label: "Degree / Course" },
-                { key: "yearGraduated", label: "Year Graduated" },
-                { key: "honors", label: "Honors" },
-              ],
-              "No educational background on file yet.",
+            content: (
+              <RecordManager
+                items={currentEmployee.education}
+                typeLabel="education record"
+                addButtonLabel="Add Education"
+                emptyMessage="No educational background on file yet."
+                employeeName={currentEmployee.displayName}
+                itemLabel={(r) => r.schoolName}
+                fields={[
+                  {
+                    key: "level",
+                    label: "Level",
+                    type: "select",
+                    options: ["Elementary", "Secondary", "Vocational / Trade", "College", "Graduate Studies"],
+                  },
+                  { key: "schoolName", label: "School / institution", required: true },
+                  { key: "degree", label: "Degree / course", hint: "e.g. BS Computer Science" },
+                  { key: "yearGraduated", label: "Year graduated", hint: "e.g. 2015" },
+                  { key: "honors", label: "Honors / awards", hint: "e.g. Cum Laude (optional)" },
+                ]}
+                emptyForm={{ level: "College", schoolName: "", degree: "", yearGraduated: "", honors: "" }}
+                columns={[
+                  { key: "level", label: "Level" },
+                  { key: "schoolName", label: "School" },
+                  { key: "degree", label: "Degree / Course" },
+                  { key: "yearGraduated", label: "Year Graduated" },
+                  { key: "honors", label: "Honors" },
+                ]}
+                onAdd={(data) => addEducation(currentEmployee.id, data)}
+                onUpdate={(recordId, patch) => updateEducation(currentEmployee.id, recordId, patch)}
+                onDelete={(recordId) => deleteEducation(currentEmployee.id, recordId)}
+              />
             ),
           },
           {
@@ -214,15 +247,60 @@ export default function Faculty201File() {
           {
             key: "workExperience",
             label: "Work Experience",
-            content: readOnlyTable(
-              currentEmployee.workExperience,
-              [
-                { key: "company", label: "Company" },
-                { key: "position", label: "Position" },
-                { key: "fromDate", label: "From" },
-                { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
-              ],
-              "No prior work experience on file yet.",
+            content: (
+              <RecordManager
+                items={currentEmployee.workExperience}
+                typeLabel="work experience record"
+                addButtonLabel="Add Work Experience"
+                emptyMessage="No prior work experience on file yet."
+                employeeName={currentEmployee.displayName}
+                itemLabel={(r) => `${r.position ? `${r.position} at ` : ""}${r.company}`}
+                fields={[
+                  { key: "company", label: "Company / employer", required: true },
+                  { key: "position", label: "Position" },
+                  { key: "fromDate", label: "From", type: "date" },
+                  { key: "toDate", label: "To", type: "date", hint: "Leave blank if current" },
+                  {
+                    key: "statusOfAppointment",
+                    label: "Status of Appointment",
+                    hint: "e.g. Permanent, Contractual, Casual",
+                  },
+                  {
+                    key: "govtService",
+                    label: "Government Service?",
+                    type: "select",
+                    options: [
+                      { value: "", label: "—" },
+                      { value: "Y", label: "Yes" },
+                      { value: "N", label: "No" },
+                    ],
+                  },
+                  {
+                    key: "description",
+                    label: "Description",
+                    type: "textarea",
+                    hint: "Key responsibilities (optional)",
+                  },
+                ]}
+                emptyForm={{
+                  company: "",
+                  position: "",
+                  fromDate: "",
+                  toDate: "",
+                  statusOfAppointment: "",
+                  govtService: "",
+                  description: "",
+                }}
+                columns={[
+                  { key: "company", label: "Company" },
+                  { key: "position", label: "Position" },
+                  { key: "fromDate", label: "From" },
+                  { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
+                ]}
+                onAdd={(data) => addWorkExperience(currentEmployee.id, data)}
+                onUpdate={(recordId, patch) => updateWorkExperience(currentEmployee.id, recordId, patch)}
+                onDelete={(recordId) => deleteWorkExperience(currentEmployee.id, recordId)}
+              />
             ),
           },
           {
@@ -258,7 +336,7 @@ export default function Faculty201File() {
           {
             key: "pds",
             label: "PDS Details",
-            content: <PdsDetailsForm employee={currentEmployee} readOnly />,
+            content: <PdsDetailsForm employee={currentEmployee} />,
           },
           {
             key: "benefits",

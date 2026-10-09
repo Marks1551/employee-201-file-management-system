@@ -74,4 +74,14 @@ export async function requireRole(...roles: string[]): Promise<User | NextRespon
   return user;
 }
 
+/** HR/admin may act on any employee record. A faculty user may act only on the
+ *  employee record linked to their own account. */
+export async function requireHrOrOwnFaculty(employeeId: string): Promise<User | NextResponse> {
+  const user = await requireUser();
+  if (user instanceof NextResponse) return user;
+  if (user.role === "hr" || user.role === "admin") return user;
+  if (user.role === "faculty" && user.employeeId === employeeId) return user;
+  return NextResponse.json({ error: "You do not have permission to do that." }, { status: 403 });
+}
+
 export type { StoredFile };

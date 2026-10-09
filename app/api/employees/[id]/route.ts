@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireUser, requireRole } from "@/shared/server/api-helpers";
+import { requireUser, requireRole, requireHrOrOwnFaculty } from "@/shared/server/api-helpers";
+import { notifyPdsUpdated } from "@/features/notifications/server/service";
+import { emptyPdsDetails } from "@/shared/types";
 import {
   getEmployee,
   updateEmployee,
@@ -24,13 +26,35 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const user = await requireRole("hr", "admin");
+  const { id } = await params;
+  const user = await requireHrOrOwnFaculty(id);
   if (user instanceof NextResponse) return user;
 
-  const { id } = await params;
   const patch = await request.json();
   const existing = await getEmployee(id);
   if (!existing) return NextResponse.json({ error: "Employee not found." }, { status: 404 });
+
+  // Faculty can edit only the PDS details of their own record — nothing else
+  // (position, department, status, etc. stay HR-only). HR is notified.
+  if (user.role === "faculty") {
+    const keys = Object.keys(patch);
+    if (keys.length !== 1 || keys[0] !== "pds") {
+      return NextResponse.json(
+        { error: "You can only edit your PDS details. Please contact HR to change other information." },
+        { status: 403 },
+      );
+    }
+    const incoming = (patch.pds || {}) as Record<string, unknown>;
+    const before = { ...emptyPdsDetails(), ...existing.pds } as Record<string, unknown>;
+    const changed = Object.keys(incoming).some((k) => JSON.stringify(incoming[k]) !== JSON.stringify(before[k]));
+    if (changed) {
+      await updateEmployeePds(id, incoming);
+      await addAuditLog(user.name, roleLabel(user.role), `Updated their own PDS details (#${existing.employeeNumber})`);
+      await notifyPdsUpdated(id, "PDS details");
+    }
+    const employee = await getEmployee(id);
+    return NextResponse.json({ employee });
+  }
 
   // Status changes (activate/deactivate) go through their own path so the
   // reason + timestamp are set/cleared consistently, and get their own audit entry.

@@ -273,7 +273,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   employee_id  VARCHAR(64) NOT NULL,
   document_id  VARCHAR(64),
   training_id  VARCHAR(64),
-  kind         ENUM('missing_document','expiring_training','pending_document') NOT NULL,
+  kind         ENUM('missing_document','expiring_training','pending_document','pds_updated') NOT NULL,
   title        VARCHAR(200) NOT NULL,
   detail       VARCHAR(255),
   status       ENUM('unread','read') NOT NULL DEFAULT 'unread',

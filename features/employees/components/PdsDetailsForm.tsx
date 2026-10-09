@@ -185,8 +185,12 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
 
   async function handleSave() {
     setSaving(true);
-    await updateEmployee(employee.id, { pds: form });
+    const result = await updateEmployee(employee.id, { pds: form });
     setSaving(false);
+    if (!result.ok) {
+      showToast(result.error || "Could not save your PDS details. Please try again.", "error");
+      return;
+    }
     setEditing(false);
     showToast("PDS details saved.");
   }

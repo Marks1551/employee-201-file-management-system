@@ -7,7 +7,7 @@ export type UserStatus = "active" | "deactivated";
 export type EmployeeStatus = "active" | "inactive";
 export type DocumentStatus = "uploaded" | "missing" | "pending" | "rejected";
 export type CertStatus = "on-file" | "expiring";
-export type NotificationKind = "missing_document" | "expiring_training" | "pending_document";
+export type NotificationKind = "missing_document" | "expiring_training" | "pending_document" | "pds_updated";
 export type NotificationStatus = "unread" | "read";
 export type EmploymentStatusValue = "Regular" | "Contractual";
 

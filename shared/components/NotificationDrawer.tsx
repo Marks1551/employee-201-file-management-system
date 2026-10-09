@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertTriangle, Clock, CheckCheck, X, BellOff, Trash2 } from "lucide-react";
+import { AlertTriangle, Clock, CheckCheck, X, BellOff, Trash2, Pencil } from "lucide-react";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 
@@ -125,10 +125,20 @@ export default function NotificationDrawer({ open, onClose }: NotificationDrawer
                     >
                       <div
                         className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          isMissing ? "bg-danger-bg text-danger-text" : "bg-warn-bg text-warn-text"
+                          isMissing
+                            ? "bg-danger-bg text-danger-text"
+                            : n.kind === "pds_updated"
+                              ? "bg-navy-100 text-navy"
+                              : "bg-warn-bg text-warn-text"
                         }`}
                       >
-                        {isMissing ? <AlertTriangle size={18} /> : <Clock size={18} />}
+                        {isMissing ? (
+                          <AlertTriangle size={18} />
+                        ) : n.kind === "pds_updated" ? (
+                          <Pencil size={18} />
+                        ) : (
+                          <Clock size={18} />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="mb-0.5 text-[0.92rem] leading-snug break-words whitespace-normal">
