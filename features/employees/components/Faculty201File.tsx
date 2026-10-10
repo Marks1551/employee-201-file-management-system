@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
-import { FileDown, Eye } from "lucide-react";
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { FileDown, Eye, Download } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
 import Tabs from "@/shared/components/Tabs";
@@ -8,6 +10,9 @@ import { TableWrap, Th, Td } from "@/shared/components/Table";
 import { useApp } from "@/shared/context/AppContext";
 import { exportPds } from "@/shared/lib/pds";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
+import Modal from "@/shared/components/Modal";
+import { downloadHref } from "@/shared/lib/downloadUrl";
+import type { DocumentRecord } from "@/shared/types";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
 import RecordManager from "@/features/employees/components/RecordManager";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
@@ -16,6 +21,29 @@ interface ReadOnlyColumn<T> {
   key: string;
   label: string;
   render?: (item: T) => ReactNode;
+}
+
+/** The file a faculty member can open for one of their documents: the approved file, or the
+ *  copy they submitted that is still pending / was rejected. */
+function fileFor(d: DocumentRecord): { url: string; name: string | null; type: string | null; note: string } | null {
+  if (d.status === "uploaded" && d.fileUrl)
+    return { url: d.fileUrl, name: d.fileName, type: d.fileType, note: "Approved file on your 201 file." };
+  if (d.status === "pending" && d.pendingFileUrl)
+    return {
+      url: d.pendingFileUrl,
+      name: d.pendingFileName,
+      type: d.pendingFileType,
+      note: "Your submission — waiting for HR to review.",
+    };
+  if (d.status === "rejected" && d.pendingFileUrl)
+    return {
+      url: d.pendingFileUrl,
+      name: d.pendingFileName,
+      type: d.pendingFileType,
+      note: "This submission was rejected. Please submit a corrected copy.",
+    };
+  if (d.fileUrl) return { url: d.fileUrl, name: d.fileName, type: d.fileType, note: "Current file on your 201 file." };
+  return null;
 }
 
 function readOnlyTable<T extends { id: string }>(items: T[], columns: ReadOnlyColumn<T>[], emptyMessage: string) {
@@ -63,6 +91,7 @@ export default function Faculty201File() {
     updateWorkExperience,
     deleteWorkExperience,
   } = useApp();
+  const [viewDoc, setViewDoc] = useState<DocumentRecord | null>(null);
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="My 201 File" />;
   const { missingCount, rejectedCount, isComplete } = documentCompletion(currentEmployee.documents);
@@ -169,22 +198,32 @@ export default function Faculty201File() {
                   render: (d) => (d.status === "rejected" && d.reviewNote ? d.reviewNote : "—"),
                 },
                 {
-                  key: "rejectedFile",
-                  label: "Rejected file",
-                  render: (d) =>
-                    d.status === "rejected" && d.pendingFileUrl ? (
-                      <a
-                        href={d.pendingFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-navy font-semibold no-underline hover:underline"
-                      >
-                        <Eye size={14} />
-                        View
-                      </a>
+                  key: "file",
+                  label: "File",
+                  render: (d) => {
+                    const f = fileFor(d);
+                    return f ? (
+                      <span className="inline-flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setViewDoc(d)}
+                          className="inline-flex items-center gap-1 text-navy font-semibold bg-transparent border-none p-0 cursor-pointer hover:underline"
+                        >
+                          <Eye size={14} />
+                          View
+                        </button>
+                        <a
+                          href={downloadHref(f.url, f.name)}
+                          className="inline-flex items-center gap-1 text-navy font-semibold no-underline hover:underline"
+                        >
+                          <Download size={14} />
+                          Download
+                        </a>
+                      </span>
                     ) : (
                       "—"
-                    ),
+                    );
+                  },
                 },
               ],
               "No documents on file yet.",
@@ -362,6 +401,44 @@ export default function Faculty201File() {
           },
         ]}
       />
+
+      <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.name || ""} wide>
+        {(() => {
+          const f = viewDoc ? fileFor(viewDoc) : null;
+          if (!viewDoc || !f) return null;
+          return (
+            <div>
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
+                {viewDoc.status === "uploaded" && <Tag kind="ok">Uploaded</Tag>}
+                {viewDoc.status === "pending" && <Tag kind="warn">Pending Review</Tag>}
+                {viewDoc.status === "rejected" && <Tag kind="danger">Rejected</Tag>}
+                <span className="text-[0.86rem] text-ink-muted">{f.note}</span>
+              </div>
+              {viewDoc.status === "rejected" && viewDoc.reviewNote && (
+                <p className="text-[0.86rem] text-ink-muted mb-3">Reason: {viewDoc.reviewNote}</p>
+              )}
+              {f.type?.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={f.url}
+                  alt={viewDoc.name}
+                  className="w-full max-h-[70vh] object-contain rounded-xl border border-border bg-navy-100"
+                />
+              ) : (
+                <iframe src={f.url} title={viewDoc.name} className="w-full h-[70vh] rounded-xl border border-border" />
+              )}
+              <div className="mt-3">
+                <a
+                  href={downloadHref(f.url, f.name)}
+                  className="text-navy font-semibold text-[0.86rem] no-underline hover:underline"
+                >
+                  Download
+                </a>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
     </Layout>
   );
 }

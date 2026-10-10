@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
-import { requireUser } from '@/shared/server/api-helpers';
-import { markAllNotificationsRead, listNotifications } from '@/features/notifications/server/service';
+import { NextResponse } from "next/server";
+import { requireRole } from "@/shared/server/api-helpers";
+import { markAllNotificationsRead, listNotifications } from "@/features/notifications/server/service";
 
 export async function POST() {
-  const user = await requireUser();
+  const user = await requireRole("hr", "admin");
   if (user instanceof NextResponse) return user;
 
   await markAllNotificationsRead();

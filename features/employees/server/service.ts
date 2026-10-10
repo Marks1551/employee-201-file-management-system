@@ -204,6 +204,160 @@ function mapAttendanceRow(row: AttendanceRow): AttendanceRecord {
 
 // ---------- employees ----------
 
+// ---------- HR-defined document requirements ----------
+
+/** Extra required documents HR has added on top of DEFAULT_DOC_TYPES. Stored in their own
+ *  table (created automatically the first time it's needed) so that employees hired later
+ *  get them too. */
+let requirementsTableReady: Promise<void> | null = null;
+function ensureRequirementsTable(): Promise<void> {
+  if (!requirementsTableReady) {
+    requirementsTableReady = (async () => {
+      await execute(
+        `CREATE TABLE IF NOT EXISTS document_requirements (
+           id          VARCHAR(64)  PRIMARY KEY,
+           name        VARCHAR(150) NOT NULL UNIQUE,
+           created_by  VARCHAR(150),
+           created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+      );
+      // Built-in requirements HR has chosen to stop requiring.
+      await execute(
+        `CREATE TABLE IF NOT EXISTS removed_document_requirements (
+           name        VARCHAR(150) PRIMARY KEY,
+           removed_by  VARCHAR(150),
+           removed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+      );
+    })().catch((err) => {
+      requirementsTableReady = null; // try again on the next request
+      throw err;
+    });
+  }
+  return requirementsTableReady;
+}
+
+export interface RequiredDocType {
+  name: string;
+  /** true for the built-in list, false for ones HR added */
+  isDefault: boolean;
+}
+
+/** Every document currently required of all employees: the built-in list (minus any HR has
+ *  removed) plus HR's additions. */
+export async function listRequiredDocTypeDetails(): Promise<RequiredDocType[]> {
+  await ensureRequirementsTable();
+  const [extra, removed] = await Promise.all([
+    query<{ name: string }>("SELECT name FROM document_requirements ORDER BY created_at ASC, name ASC"),
+    query<{ name: string }>("SELECT name FROM removed_document_requirements"),
+  ]);
+  const removedSet = new Set(removed.map((r) => r.name.toLowerCase()));
+  const all: RequiredDocType[] = DEFAULT_DOC_TYPES.filter((n) => !removedSet.has(n.toLowerCase())).map((name) => ({
+    name,
+    isDefault: true,
+  }));
+  for (const { name } of extra) {
+    if (!all.some((r) => r.name.toLowerCase() === name.toLowerCase())) all.push({ name, isDefault: false });
+  }
+  return all;
+}
+
+export async function listRequiredDocTypes(): Promise<string[]> {
+  return (await listRequiredDocTypeDetails()).map((r) => r.name);
+}
+
+/** HR stops requiring a document. The requirement is removed (so new hires and the server's
+ *  start-up check no longer add it) and every employee's "missing" row for it is deleted.
+ *  Files people already submitted are kept as ordinary documents unless `deleteSubmitted`
+ *  is true. Returns stored file URLs the caller should delete from storage. */
+export async function removeRequiredDocument(
+  name: string,
+  removedBy: string,
+  deleteSubmitted: boolean,
+): Promise<{ removedRows: number; keptSubmitted: number; fileUrls: string[] }> {
+  await ensureRequirementsTable();
+  const docName = name.trim();
+
+  await execute("DELETE FROM document_requirements WHERE LOWER(name) = LOWER(?)", [docName]);
+  if (DEFAULT_DOC_TYPES.some((n) => n.toLowerCase() === docName.toLowerCase())) {
+    await execute("INSERT IGNORE INTO removed_document_requirements (name, removed_by) VALUES (?,?)", [
+      DEFAULT_DOC_TYPES.find((n) => n.toLowerCase() === docName.toLowerCase()) as string,
+      removedBy,
+    ]);
+  }
+
+  const rows = await query<{
+    id: string;
+    employee_id: string;
+    status: string;
+    file_url: string | null;
+    pending_file_url: string | null;
+  }>("SELECT id, employee_id, status, file_url, pending_file_url FROM documents WHERE LOWER(name) = LOWER(?)", [
+    docName,
+  ]);
+
+  const doomed = rows.filter((r) => deleteSubmitted || r.status === "missing");
+  const fileUrls: string[] = [];
+  for (const r of doomed) {
+    if (r.file_url) fileUrls.push(r.file_url);
+    if (r.pending_file_url) fileUrls.push(r.pending_file_url);
+    await execute("DELETE FROM documents WHERE id = ?", [r.id]);
+  }
+  for (const empId of new Set(doomed.map((r) => r.employee_id))) await syncNotificationsForEmployee(empId);
+
+  return { removedRows: doomed.length, keptSubmitted: rows.length - doomed.length, fileUrls };
+}
+
+/** HR asks for a new document. Every active employee (or just `employeeId`, if given) gets a
+ *  "missing" row, which puts it in their Submit-a-Document choices and on their dashboard, and
+ *  raises the usual missing-document notification for HR. Returns how many employees were asked. */
+export async function requestNewDocument(
+  name: string,
+  createdBy: string,
+  employeeId?: string | null,
+): Promise<{ requested: number; alreadyHad: number }> {
+  const docName = name.trim().replace(/\s+/g, " ");
+  await ensureRequirementsTable();
+
+  let targets: { id: string }[];
+  if (employeeId) {
+    targets = await query<{ id: string }>("SELECT id FROM employees WHERE id = ?", [employeeId]);
+  } else {
+    // Company-wide: remember it so people hired later are asked for it as well.
+    // (Adding back a built-in document HR had removed simply makes it required again.)
+    await execute("DELETE FROM removed_document_requirements WHERE LOWER(name) = LOWER(?)", [docName]);
+    await execute("INSERT IGNORE INTO document_requirements (id, name, created_by) VALUES (?,?,?)", [
+      `req-${randomUUID()}`,
+      docName,
+      createdBy,
+    ]);
+    targets = await query<{ id: string }>("SELECT id FROM employees WHERE COALESCE(status, 'active') = 'active'");
+  }
+
+  let requested = 0;
+  let alreadyHad = 0;
+  for (const { id } of targets) {
+    const existing = await query<{ id: string }>(
+      "SELECT id FROM documents WHERE employee_id = ? AND LOWER(name) = LOWER(?)",
+      [id, docName],
+    );
+    if (existing.length) {
+      alreadyHad++;
+      continue;
+    }
+    await execute("INSERT INTO documents (id, employee_id, name, status, uploaded_at) VALUES (?,?,?,?,?)", [
+      `d-${randomUUID()}`,
+      id,
+      docName,
+      "missing",
+      null,
+    ]);
+    requested++;
+    await syncNotificationsForEmployee(id);
+  }
+  return { requested, alreadyHad };
+}
+
 /** Makes sure every employee has a row for each required document type
  *  (DEFAULT_DOC_TYPES), so e.g. an Employment Contract HR never added earlier
  *  still shows up as "missing" and can be uploaded. Runs once per server start;
@@ -214,7 +368,7 @@ function ensureRequiredDocuments(): Promise<void> {
   if (!requiredDocsEnsured) {
     requiredDocsEnsured = (async () => {
       const touched = new Set<string>();
-      for (const name of DEFAULT_DOC_TYPES) {
+      for (const name of await listRequiredDocTypes()) {
         const lacking = await query<{ id: string }>(
           "SELECT e.id FROM employees e WHERE NOT EXISTS (SELECT 1 FROM documents d WHERE d.employee_id = e.id AND d.name = ?)",
           [name],
@@ -391,6 +545,7 @@ export async function findEmployeeNumberConflict(
 export async function createEmployee(rawData: EmployeeInput): Promise<string> {
   const data = normalizeContractDates(rawData);
   const id = `emp-${randomUUID()}`;
+  const requiredDocTypes = await listRequiredDocTypes();
   await withTransaction(async (conn: PoolConnection) => {
     await conn.execute(
       `INSERT INTO employees (id, employee_number, initials, full_name, display_name, dob, civil_status, nationality, contact, email, address, department, position, employment_type, date_hired, employment_status, contract_start, contract_end, supervisor)
@@ -417,7 +572,7 @@ export async function createEmployee(rawData: EmployeeInput): Promise<string> {
         data.supervisor || null,
       ] as any[],
     );
-    for (const name of DEFAULT_DOC_TYPES) {
+    for (const name of requiredDocTypes) {
       await conn.execute("INSERT INTO documents (id, employee_id, name, status, uploaded_at) VALUES (?,?,?,?,?)", [
         `d-${randomUUID()}`,
         id,

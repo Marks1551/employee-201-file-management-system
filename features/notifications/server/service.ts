@@ -179,6 +179,17 @@ export async function listNotifications(): Promise<Notification[]> {
   return rows.map(mapNotificationRow);
 }
 
+/** One employee's own missing-document / expiring-certificate alerts (including ones HR has
+ *  already cleared), so the faculty bell can show when each item first came up. */
+export async function listNotificationsForEmployee(employeeId: string): Promise<Notification[]> {
+  await ensureNotificationSchema();
+  const rows = await query<NotificationRow>(
+    "SELECT * FROM notifications WHERE employee_id = ? AND kind IN ('missing_document','expiring_training') ORDER BY created_at DESC LIMIT 200",
+    [employeeId],
+  );
+  return rows.map(mapNotificationRow);
+}
+
 export async function markNotificationRead(id: string): Promise<void> {
   await execute("UPDATE notifications SET status = 'read' WHERE id = ?", [id]);
 }

@@ -5,7 +5,13 @@
 // shared across instances), so writes to public/ work in local dev but
 // silently fail, or don't persist, once deployed.
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -46,6 +52,18 @@ export async function putObject(key: string, file: File | Buffer, contentType: s
     new PutObjectCommand({ Bucket: requireBucket(), Key: key, Body: bytes, ContentType: contentType }),
   );
   return publicUrlFor(key);
+}
+
+/** Reads an object's bytes (used to serve real "save as" downloads). Returns null if it's missing. */
+export async function getObjectBytes(key: string): Promise<{ bytes: Uint8Array; contentType: string } | null> {
+  try {
+    const res = await getClient().send(new GetObjectCommand({ Bucket: requireBucket(), Key: key }));
+    if (!res.Body) return null;
+    const bytes = await res.Body.transformToByteArray();
+    return { bytes, contentType: res.ContentType || "application/octet-stream" };
+  } catch {
+    return null;
+  }
 }
 
 /** Deletes every object under a key prefix (e.g. all extensions of one base filename). Never throws. */

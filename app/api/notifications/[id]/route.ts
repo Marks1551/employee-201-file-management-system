@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireUser } from "@/shared/server/api-helpers";
+import { requireRole } from "@/shared/server/api-helpers";
 import { markNotificationRead, dismissNotification, listNotifications } from "@/features/notifications/server/service";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const user = await requireUser();
+  const user = await requireRole("hr", "admin");
   if (user instanceof NextResponse) return user;
 
   const { id } = await params;
@@ -17,7 +17,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 /** Deletes (dismisses) a single notification. */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const user = await requireUser();
+  const user = await requireRole("hr", "admin");
   if (user instanceof NextResponse) return user;
 
   const { id } = await params;

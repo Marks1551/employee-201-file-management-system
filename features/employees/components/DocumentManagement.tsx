@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { Search, Eye } from "lucide-react";
+import { Search, Eye, FilePlus2, Trash2, ListChecks, ChevronDown } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { inputCls, Tag, Button, Field } from "@/shared/components/ui";
 import { TableWrap, Th, Td, CellName, CellSub } from "@/shared/components/Table";
@@ -21,7 +21,8 @@ interface DocumentRow extends DocumentRecord {
 }
 
 export default function DocumentManagement() {
-  const { employees, uploadDocument, approveDocument, rejectDocument } = useApp();
+  const { employees, uploadDocument, approveDocument, rejectDocument, requestDocument, removeDocumentRequirement } =
+    useApp();
   const showToast = useToast();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -38,11 +39,103 @@ export default function DocumentManagement() {
   const [rejectNote, setRejectNote] = useState("");
   const [rejectBusy, setRejectBusy] = useState(false);
 
+  // "Request a new document": HR asks everyone (or one employee) for an extra requirement.
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestName, setRequestName] = useState("");
+  const [requestTarget, setRequestTarget] = useState("all");
+  const [requestBusy, setRequestBusy] = useState(false);
+
+  // The list of required documents (built-in + added by HR), with a remove control for each.
+  const [requirements, setRequirements] = useState<{ name: string; isDefault: boolean }[]>([]);
+  const [reqVersion, setReqVersion] = useState(0);
+  // Collapsed until HR opens it, so the page stays focused on the documents table.
+  const [reqExpanded, setReqExpanded] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const [removeFiles, setRemoveFiles] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/documents/requirements")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.requirements) setRequirements(d.requirements);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [reqVersion]);
+
+  // Per-document totals across all employees, for the requirements list.
+  const requirementStats = useMemo(() => {
+    const stats = new Map<string, { uploaded: number; pending: number; missing: number; rejected: number }>();
+    employees.forEach((emp) =>
+      emp.documents.forEach((d) => {
+        const key = d.name.toLowerCase();
+        const st = stats.get(key) || {
+          uploaded: 0,
+          pending: 0,
+          missing: 0,
+          rejected: 0,
+        };
+        st[d.status] += 1;
+        stats.set(key, st);
+      }),
+    );
+    return stats;
+  }, [employees]);
+
+  const removeStats = removeTarget ? requirementStats.get(removeTarget.toLowerCase()) : undefined;
+  const removeSubmittedCount = removeStats ? removeStats.uploaded + removeStats.pending + removeStats.rejected : 0;
+
+  async function handleRemoveRequirement() {
+    if (!removeTarget) return;
+    setRemoveBusy(true);
+    const result = await removeDocumentRequirement(removeTarget, removeFiles);
+    setRemoveBusy(false);
+    if (!result.ok) {
+      showToast(result.error, "error");
+      return;
+    }
+    showToast(`"${removeTarget}" is no longer a required document.`);
+    setRemoveTarget(null);
+    setRemoveFiles(false);
+    setReqVersion((v) => v + 1);
+  }
+
+  function closeRequest() {
+    setRequestOpen(false);
+    setRequestName("");
+    setRequestTarget("all");
+  }
+
+  async function handleRequestDocument() {
+    if (!requestName.trim()) return;
+    setRequestBusy(true);
+    const result = await requestDocument(requestName, requestTarget === "all" ? null : requestTarget);
+    setRequestBusy(false);
+    if (!result.ok) {
+      showToast(result.error, "error");
+      return;
+    }
+    showToast(
+      `"${requestName.trim()}" requested from ${result.requested === 1 ? "1 employee" : `${result.requested} employees`}. It now shows in their Submit a Document choices.`,
+    );
+    closeRequest();
+    setReqVersion((v) => v + 1);
+  }
+
   const rows = useMemo(() => {
     const list: DocumentRow[] = [];
     employees.forEach((emp) => {
       emp.documents.forEach((doc) => {
-        list.push({ empId: emp.id, empName: emp.displayName, empNumber: emp.employeeNumber, ...doc });
+        list.push({
+          empId: emp.id,
+          empName: emp.displayName,
+          empNumber: emp.employeeNumber,
+          ...doc,
+        });
       });
     });
     return list;
@@ -147,10 +240,16 @@ export default function DocumentManagement() {
 
   return (
     <Layout role="hr" eyebrow="HR › Documents" title="Document Management">
-      <p className="text-ink-muted mb-5">
-        {rows.length} documents tracked across {employees.length} employees. {missingTotal} are still missing
-        {pendingTotal > 0 ? `, ${pendingTotal} awaiting your review` : ""}.
-      </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-5">
+        <p className="text-ink-muted m-0">
+          {rows.length} documents tracked across {employees.length} employees. {missingTotal} are still missing
+          {pendingTotal > 0 ? `, ${pendingTotal} awaiting your review` : ""}.
+        </p>
+        <Button onClick={() => setRequestOpen(true)}>
+          <FilePlus2 size={18} />
+          Request New Document
+        </Button>
+      </div>
 
       <div className="bg-white border border-border rounded-2xl shadow-card p-5 mb-5">
         <div className="grid gap-4 items-end">
@@ -170,7 +269,11 @@ export default function DocumentManagement() {
       {/* Mobile: a menu that lists the status subpages */}
       <div className="md:hidden mb-4">
         <TabMenu
-          options={statusTabs.map((t) => ({ key: t.key, label: t.label, badge: tabCounts[t.key] }))}
+          options={statusTabs.map((t) => ({
+            key: t.key,
+            label: t.label,
+            badge: tabCounts[t.key],
+          }))}
           value={statusFilter}
           onChange={changeTab}
           ariaLabel="Filter documents by status"
@@ -200,6 +303,66 @@ export default function DocumentManagement() {
             </button>
           );
         })}
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-border bg-white p-4">
+        <button
+          type="button"
+          onClick={() => setReqExpanded((v) => !v)}
+          aria-expanded={reqExpanded}
+          aria-controls="required-documents-list"
+          className={`w-full flex items-center gap-2 bg-transparent border-none p-0 cursor-pointer text-left ${reqExpanded ? "mb-3" : ""}`}
+        >
+          <ListChecks size={18} className="text-navy" />
+          <h3 className="m-0 text-[1rem] flex-1">Required documents ({requirements.length})</h3>
+          <span className="text-[0.82rem] text-ink-muted">{reqExpanded ? "Hide" : "Show"}</span>
+          <ChevronDown size={18} className={`text-navy transition-transform ${reqExpanded ? "rotate-180" : ""}`} />
+        </button>
+        {reqExpanded && (
+          <div id="required-documents-list">
+            {requirements.length === 0 ? (
+              <p className="m-0 text-ink-muted text-[0.88rem]">No documents are currently required.</p>
+            ) : (
+              <ul className="list-none m-0 p-0 grid gap-2">
+                {requirements.map((req) => {
+                  const st = requirementStats.get(req.name.toLowerCase());
+                  return (
+                    <li
+                      key={req.name}
+                      className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-semibold text-[0.92rem]">{req.name}</span>
+                        {!req.isDefault && (
+                          <span className="ml-2 text-[0.72rem] font-bold text-gold-dark uppercase tracking-wide">
+                            Added by HR
+                          </span>
+                        )}
+                        <div className="text-[0.78rem] text-ink-muted mt-0.5">
+                          {st
+                            ? `${st.uploaded} submitted · ${st.pending} pending review · ${st.missing} missing${st.rejected ? ` · ${st.rejected} rejected` : ""}`
+                            : "No employee records yet"}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoveFiles(false);
+                          setRemoveTarget(req.name);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-danger-text font-semibold text-[0.84rem] bg-transparent border border-danger-border rounded-full px-3 min-h-[34px] cursor-pointer hover:bg-danger-bg"
+                        aria-label={`Remove required document ${req.name}`}
+                      >
+                        <Trash2 size={15} />
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       <TableWrap>
@@ -319,6 +482,89 @@ export default function DocumentManagement() {
         className="hidden"
         onChange={handleFileChange}
       />
+
+      <Modal
+        open={!!removeTarget}
+        onClose={() => (removeBusy ? null : setRemoveTarget(null))}
+        title={`Remove "${removeTarget || ""}"?`}
+      >
+        <p className="text-[0.9rem] text-ink-muted mb-3">
+          This document will no longer be required. It's removed from everyone's Submit a Document choices and dashboard
+          {removeStats && removeStats.missing > 0
+            ? ` (${removeStats.missing} missing record${removeStats.missing === 1 ? "" : "s"} cleared)`
+            : ""}
+          , and new employees won't be asked for it.
+        </p>
+        {removeSubmittedCount > 0 && (
+          <label className="flex items-start gap-2 text-[0.88rem] mb-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={removeFiles}
+              onChange={(e) => setRemoveFiles(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Also permanently delete the {removeSubmittedCount} file
+              {removeSubmittedCount === 1 ? "" : "s"} already submitted.{" "}
+              <span className="text-ink-muted">(If left unticked, they stay on the employees' 201 files.)</span>
+            </span>
+          </label>
+        )}
+        <div className="flex gap-3 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setRemoveTarget(null)} disabled={removeBusy}>
+            Cancel
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={handleRemoveRequirement} disabled={removeBusy}>
+            {removeBusy ? "Removing…" : "Remove"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal open={requestOpen} onClose={closeRequest} title="Request a new document">
+        <p className="text-[0.86rem] text-ink-muted mb-4">
+          Add a new requirement. It's marked as missing on the 201 file, shows on the faculty member's dashboard, and
+          appears in their Submit a Document choices so they can upload it.
+        </p>
+        <Field
+          label="Document name"
+          htmlFor="reqDocName"
+          hint="e.g. Barangay Clearance, Updated Resume, TOR (certified copy)"
+        >
+          <input
+            id="reqDocName"
+            className={inputCls}
+            maxLength={150}
+            value={requestName}
+            onChange={(e) => setRequestName(e.target.value)}
+            autoFocus
+          />
+        </Field>
+        <Field label="Request from" htmlFor="reqDocTarget">
+          <select
+            id="reqDocTarget"
+            className={inputCls}
+            value={requestTarget}
+            onChange={(e) => setRequestTarget(e.target.value)}
+          >
+            <option value="all">All employees (and anyone hired later)</option>
+            {employees
+              .filter((e) => (e.status || "active") === "active")
+              .map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.displayName} (#{e.employeeNumber}) only
+                </option>
+              ))}
+          </select>
+        </Field>
+        <div className="flex gap-3 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={closeRequest}>
+            Cancel
+          </Button>
+          <Button className="flex-1" onClick={handleRequestDocument} disabled={requestBusy || !requestName.trim()}>
+            {requestBusy ? "Requesting…" : "Request Document"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal open={!!rejectRow} onClose={closeReject} title={rejectRow ? `Reject "${rejectRow.name}"` : ""}>
         <p className="text-[0.86rem] text-ink-muted mb-4">

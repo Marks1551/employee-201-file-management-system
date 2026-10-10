@@ -116,6 +116,12 @@ export interface AppContextValue {
     docFile?: File | null,
   ) => Promise<ActionResult>;
 
+  /** HR/admin: ask for a new document from everyone (no employeeId) or one employee. */
+  requestDocument: (docName: string, employeeId?: string | null) => Promise<ActionResult & { requested?: number }>;
+
+  /** HR/admin: stop requiring a document everywhere (optionally deleting files already submitted). */
+  removeDocumentRequirement: (docName: string, deleteSubmitted: boolean) => Promise<ActionResult>;
+
   addTraining: (employeeId: string, data: Record<string, unknown>) => Promise<ActionResult>;
   updateTraining: (employeeId: string, trainingId: string, patch: Record<string, unknown>) => Promise<ActionResult>;
   deleteTraining: (employeeId: string, trainingId: string) => Promise<ActionResult>;
@@ -630,6 +636,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /** docFile is optional — a File from an <input type="file">. Returns { ok, error? }. */
+  const requestDocument = useCallback(
+    async (docName: string, employeeId?: string | null): Promise<ActionResult & { requested?: number }> => {
+      try {
+        const res = await fetch("/api/documents/requirements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: docName, employeeId: employeeId || undefined }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not add the document requirement.");
+        await refreshAll();
+        return { ok: true, requested: data.requested };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
+      }
+    },
+    [refreshAll],
+  );
+
+  const removeDocumentRequirement = useCallback(
+    async (docName: string, deleteSubmitted: boolean): Promise<ActionResult> => {
+      try {
+        const res = await fetch("/api/documents/requirements", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: docName, deleteSubmitted }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not remove the document requirement.");
+        await refreshAll();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
+      }
+    },
+    [refreshAll],
+  );
+
   const submitDocument = useCallback(
     async (
       employeeId: string | null | undefined,
@@ -934,6 +978,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     uploadEmployeePhoto,
     removeEmployeePhoto,
     submitDocument,
+    requestDocument,
+    removeDocumentRequirement,
     addTraining,
     updateTraining,
     deleteTraining,

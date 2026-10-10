@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu, LogOut, Bell } from "lucide-react";
 import { navConfig, type NavLinkItem } from "./navConfig";
 import NotificationDrawer from "./NotificationDrawer";
+import FacultyNotificationDrawer from "./FacultyNotificationDrawer";
+import { useFacultyNotifications } from "@/shared/lib/useFacultyNotifications";
 import { useChatUnread } from "@/features/chat/useChatUnread";
 import { useApp, roleLabel } from "@/shared/context/AppContext";
 import type { Role } from "@/shared/types";
@@ -20,7 +22,7 @@ interface LayoutProps {
 export default function Layout({ role, eyebrow, title, children }: LayoutProps) {
   const [navOpen, setNavOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const { currentUser, logout, notifications } = useApp();
+  const { currentUser, currentEmployee, logout, notifications } = useApp();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -31,7 +33,15 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
     setNotifOpen(false);
   }, [pathname]);
 
-  const unreadNotificationsCount = notifications.filter((n) => n.status === "unread").length;
+  // HR sees the shared notification list; faculty see only their own, worked out from their 201 file.
+  const facultyNotifications = useFacultyNotifications(currentEmployee, role === "faculty", notifications);
+  const unreadNotificationsCount =
+    role === "faculty" ? facultyNotifications.unreadCount : notifications.filter((n) => n.status === "unread").length;
+  // Faculty: documents HR is waiting on (missing, or rejected and needing a resubmit).
+  const documentsNeededCount =
+    role === "faculty"
+      ? (currentEmployee?.documents || []).filter((d) => d.status === "missing" || d.status === "rejected").length
+      : 0;
   const unreadChatCount = useChatUnread(role === "hr" || role === "faculty");
 
   function isNavActive(item: NavLinkItem) {
@@ -92,6 +102,11 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
                         {unreadNotificationsCount}
                       </span>
                     )}
+                    {navItem.badgeKey === "documents" && documentsNeededCount > 0 && (
+                      <span className="bg-danger-bg text-danger-text border border-danger-border rounded-full text-[0.72rem] font-bold px-2 py-0.5">
+                        {documentsNeededCount}
+                      </span>
+                    )}
                     {navItem.badgeKey === "chat" && unreadChatCount > 0 && (
                       <span className="bg-danger-bg text-danger-text border border-danger-border rounded-full text-[0.72rem] font-bold px-2 py-0.5">
                         {unreadChatCount}
@@ -149,7 +164,7 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
                 {currentUser?.initials}
               </div>
             )}
-            {role === "hr" && (
+            {(role === "hr" || role === "faculty") && (
               <button
                 type="button"
                 onClick={() => setNotifOpen((o) => !o)}
@@ -178,6 +193,13 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
       </div>
 
       {role === "hr" && <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} />}
+      {role === "faculty" && (
+        <FacultyNotificationDrawer
+          open={notifOpen}
+          onClose={() => setNotifOpen(false)}
+          notifications={facultyNotifications}
+        />
+      )}
     </div>
   );
 }

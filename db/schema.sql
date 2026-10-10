@@ -265,6 +265,24 @@ CREATE TABLE IF NOT EXISTS audit_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------
+-- document_requirements: extra required documents HR adds on top of the built-in
+-- list; every new employee gets a "missing" row for each one
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS document_requirements (
+  id          VARCHAR(64)  PRIMARY KEY,
+  name        VARCHAR(150) NOT NULL UNIQUE,
+  created_by  VARCHAR(150),
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Built-in required documents that HR has chosen to stop requiring
+CREATE TABLE IF NOT EXISTS removed_document_requirements (
+  name        VARCHAR(150) PRIMARY KEY,
+  removed_by  VARCHAR(150),
+  removed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------
 -- notifications: persisted alerts (missing documents, expiring certifications),
 -- kept in sync automatically whenever documents/trainings change
 -- ---------------------------------------------------------------------------

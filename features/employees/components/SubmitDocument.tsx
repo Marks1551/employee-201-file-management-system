@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { UploadCloud, Paperclip, Eye } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
@@ -9,26 +9,48 @@ import { TableWrap, Th, Td } from "@/shared/components/Table";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 
-const docTypes = [
-  "NBI Clearance",
-  "Government-Issued ID",
-  "Diploma / Transcript of Records",
-  "Employment Contract",
-  "Medical Certificate",
-  "License",
-  "PRC",
-  "Training Certificate",
-  "Other",
-];
+// Always available regardless of HR's requirements (not tied to a required document).
+const generalTypes = ["Training Certificate", "Other"];
 
 export default function SubmitDocument() {
   const { currentEmployee, submitDocument, ready } = useApp();
   const showToast = useToast();
-  const [docType, setDocType] = useState(docTypes[0]);
+  const [docType, setDocType] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputId = "docfile";
+
+  // The documents HR currently requires (built-in + added by HR, minus anything HR has removed).
+  const [required, setRequired] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/documents/requirements")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.requirements) setRequired(d.requirements.map((r: { name: string }) => r.name));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Choices = documents HR is waiting on from this employee (including one-off requests), then
+  // the currently required documents, then the general types. A document HR has stopped
+  // requiring no longer appears, even if a copy is still on file.
+  const options = useMemo(() => {
+    const docs = currentEmployee?.documents || [];
+    const needed = docs.filter((d) => d.status === "missing" || d.status === "rejected").map((d) => d.name);
+    return {
+      needed,
+      all: Array.from(new Set([...needed, ...required, ...generalTypes])),
+    };
+  }, [currentEmployee?.documents, required]);
+
+  useEffect(() => {
+    if (!docType && options.all.length) setDocType(options.needed[0] || options.all[0]);
+  }, [docType, options]);
 
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="Submit a Document" />;
@@ -82,8 +104,10 @@ export default function SubmitDocument() {
                 onChange={(e) => setDocType(e.target.value)}
                 required
               >
-                {docTypes.map((d) => (
-                  <option key={d}>{d}</option>
+                {options.all.map((d) => (
+                  <option key={d} value={d}>
+                    {options.needed.includes(d) ? `${d} — needed` : d}
+                  </option>
                 ))}
               </select>
             </Field>

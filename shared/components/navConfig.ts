@@ -22,7 +22,7 @@ export interface NavLinkItem {
   label: string;
   icon: LucideIcon;
   end?: boolean;
-  badgeKey?: "notifications" | "chat";
+  badgeKey?: "notifications" | "chat" | "documents";
   section?: undefined;
 }
 
@@ -60,7 +60,7 @@ export const navConfig: Record<Role, NavItem[]> = {
   faculty: [
     { to: "/faculty", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/faculty/201file", label: "My 201 File", icon: FileText },
-    { to: "/faculty/submit", label: "Submit a Document", icon: UploadCloud },
+    { to: "/faculty/submit", label: "Submit a Document", icon: UploadCloud, badgeKey: "documents" },
     { to: "/faculty/chat", label: "Chat with HR", icon: MessageSquare, badgeKey: "chat" },
     { section: "Account" },
     { to: "/faculty/change-password", label: "Change Password", icon: KeyRound },

@@ -57,12 +57,21 @@ export default function FacultyDashboard() {
 
       {missing.length > 0 && (
         <div className="flex gap-3 p-4 rounded-2xl border border-warn-border bg-warn-bg text-warn-text mb-5">
-          <AlertTriangle size={20} className="flex-shrink-0" />
-          <div>
-            <strong className="block mb-0.5">Your {missing[0].name} is missing</strong>
+          <AlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <strong className="block mb-1">
+              HR is asking for {missing.length} {missing.length === 1 ? "document" : "documents"}
+            </strong>
+            <ul className="m-0 mb-2 pl-5 list-disc">
+              {missing.map((d) => (
+                <li key={d.id} className="font-semibold">
+                  {d.name}
+                </li>
+              ))}
+            </ul>
             Please submit a copy so your 201 file stays complete.{" "}
             <Link href="/faculty/submit" className="underline font-medium">
-              Submit it now
+              Submit now
             </Link>
             .
           </div>

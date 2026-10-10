@@ -15,6 +15,7 @@ import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBe
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared/lib/roles";
+import { downloadHref } from "@/shared/lib/downloadUrl";
 import { exportEmployeeProfile } from "@/shared/lib/employeeExport";
 import { getNameParts, composeFullName, composeDisplayName, type NameParts } from "@/shared/lib/names";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
@@ -1054,8 +1055,7 @@ export default function HREmployeeFile() {
             )}
             <div className="flex items-center justify-between mt-3">
               <a
-                href={viewDoc.pendingFileUrl}
-                download={viewDoc.pendingFileName || undefined}
+                href={downloadHref(viewDoc.pendingFileUrl, viewDoc.pendingFileName)}
                 className="text-navy font-semibold text-[0.86rem] no-underline hover:underline"
               >
                 Download
@@ -1114,8 +1114,7 @@ export default function HREmployeeFile() {
             )}
             <div className="mt-3">
               <a
-                href={viewDoc.pendingFileUrl}
-                download={viewDoc.pendingFileName || undefined}
+                href={downloadHref(viewDoc.pendingFileUrl, viewDoc.pendingFileName)}
                 className="text-navy font-semibold text-[0.86rem] no-underline hover:underline"
               >
                 Download
@@ -1140,8 +1139,7 @@ export default function HREmployeeFile() {
             <div className="flex items-center justify-between mt-3">
               <p className="text-[0.86rem] text-ink-muted m-0">Uploaded {viewDoc.uploaded}</p>
               <a
-                href={viewDoc.fileUrl}
-                download={viewDoc.fileName || undefined}
+                href={downloadHref(viewDoc.fileUrl, viewDoc.fileName)}
                 className="text-navy font-semibold text-[0.86rem] no-underline hover:underline"
               >
                 Download
@@ -1208,8 +1206,7 @@ export default function HREmployeeFile() {
             )}
             <div className="flex items-center justify-end mt-3">
               <a
-                href={viewCert.certFileUrl}
-                download={viewCert.certFileName || undefined}
+                href={downloadHref(viewCert.certFileUrl, viewCert.certFileName)}
                 className="text-navy font-semibold text-[0.86rem] no-underline hover:underline"
               >
                 Download
