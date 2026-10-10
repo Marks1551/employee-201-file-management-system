@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Search, Camera, X, Upload, FileCheck2 } from "lucide-react";
+import { Plus, Search, Camera, X, Upload, FileCheck2, Printer } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { Button, Field, inputCls, Tag, Avatar } from "@/shared/components/ui";
 import { TableWrap, Th, Td, CellName, CellSub } from "@/shared/components/Table";
@@ -15,6 +15,7 @@ import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared
 import { parsePdsImportText } from "@/shared/lib/pds";
 import { composeFullName, composeDisplayName } from "@/shared/lib/names";
 import { toInputDate, fromInputDate } from "@/shared/lib/dateFormat";
+import { printEmployeeRecords } from "@/shared/lib/employeeListPrint";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import type { Employee, PdsDetails } from "@/shared/types";
 
@@ -242,10 +243,20 @@ export default function HREmployees() {
         <p className="text-ink-muted m-0">
           {employees.length} employees on file. Search, filter, or open a 201 file below.
         </p>
-        <Button variant="gold" onClick={() => setAddOpen(true)}>
-          <Plus size={18} />
-          Add Employee
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="secondary"
+            disabled={filtered.length === 0}
+            onClick={() => printEmployeeRecords(filtered, { department: dept, status: statusFilter, search: query })}
+          >
+            <Printer size={18} />
+            {dept === "All departments" ? "Print Records" : `Print ${dept}`}
+          </Button>
+          <Button variant="gold" onClick={() => setAddOpen(true)}>
+            <Plus size={18} />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white border border-border rounded-2xl shadow-card p-5 mb-5">
