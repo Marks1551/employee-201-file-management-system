@@ -183,6 +183,9 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
   const [form, setForm] = useState<PdsDetails>({ ...emptyPdsDetails(), ...employee.pds });
   const [core, setCore] = useState(coreFrom(employee));
   const [saving, setSaving] = useState(false);
+  // Faculty must certify their PDS entries before saving (HR editing on someone's behalf doesn't).
+  const needsCertification = currentUser?.role === "faculty";
+  const [certified, setCertified] = useState(false);
   const [editing, setEditing] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -209,6 +212,10 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
   }
 
   async function handleSave() {
+    if (needsCertification && !certified) {
+      showToast("Please tick the certification before saving.", "error");
+      return;
+    }
     if (canEditCore && (!(form.firstName || "").trim() || !(form.lastName || "").trim())) {
       showToast("First name and surname are required.", "error");
       return;
@@ -221,18 +228,21 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
       return;
     }
     setEditing(false);
+    setCertified(false);
     showToast("PDS details saved.");
   }
 
   function handleEdit() {
     setForm({ ...emptyPdsDetails(), ...employee.pds });
     setCore(coreFrom(employee));
+    setCertified(false);
     setEditing(true);
   }
 
   function handleCancel() {
     setForm({ ...emptyPdsDetails(), ...employee.pds });
     setCore(coreFrom(employee));
+    setCertified(false);
     setEditing(false);
   }
 
@@ -1227,13 +1237,29 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
         </div>
       </Card>
 
+      {!readOnly && editing && needsCertification && (
+        <label className="flex items-start gap-3 rounded-xl border border-border bg-white p-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={certified}
+            onChange={(e) => setCertified(e.target.checked)}
+            className="mt-1 w-4 h-4 flex-shrink-0"
+          />
+          <span className="text-[0.88rem] leading-snug">
+            <strong>I hereby certify</strong> that the information I have provided in this Personal Data Sheet is true,
+            correct and complete to the best of my knowledge and belief, and I understand that any false statement may
+            be grounds for administrative action.
+          </span>
+        </label>
+      )}
+
       {!readOnly && editing && (
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={handleCancel} disabled={saving}>
             <X size={16} />
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || (needsCertification && !certified)}>
             {saving ? "Saving…" : "Save PDS Details"}
           </Button>
         </div>
