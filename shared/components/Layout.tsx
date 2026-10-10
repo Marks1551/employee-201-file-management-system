@@ -7,7 +7,7 @@ import { Menu, LogOut, Bell } from "lucide-react";
 import { navConfig, type NavLinkItem } from "./navConfig";
 import NotificationDrawer from "./NotificationDrawer";
 import FacultyNotificationDrawer from "./FacultyNotificationDrawer";
-import { useFacultyNotifications } from "@/shared/lib/useFacultyNotifications";
+import { useFacultyNotifications, type AnnouncementAlert } from "@/shared/lib/useFacultyNotifications";
 import { useChatUnread } from "@/features/chat/useChatUnread";
 import { useApp, roleLabel } from "@/shared/context/AppContext";
 import type { Role } from "@/shared/types";
@@ -34,7 +34,34 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
   }, [pathname]);
 
   // HR sees the shared notification list; faculty see only their own, worked out from their 201 file.
-  const facultyNotifications = useFacultyNotifications(currentEmployee, role === "faculty", notifications);
+  // Announcements from HR (for everyone, or this employee's department) — refreshed every minute
+  // and whenever the tab is focused again, so a new one lands in the bell without a page reload.
+  const [announcements, setAnnouncements] = useState<AnnouncementAlert[]>([]);
+  useEffect(() => {
+    if (role !== "faculty") return;
+    let cancelled = false;
+    const load = () =>
+      fetch("/api/announcements")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!cancelled && d?.announcements) setAnnouncements(d.announcements);
+        })
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 60_000);
+    window.addEventListener("focus", load);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", load);
+    };
+  }, [role]);
+  const facultyNotifications = useFacultyNotifications(
+    currentEmployee,
+    role === "faculty",
+    notifications,
+    announcements,
+  );
   const unreadNotificationsCount =
     role === "faculty" ? facultyNotifications.unreadCount : notifications.filter((n) => n.status === "unread").length;
   // Faculty: documents HR is waiting on (missing, or rejected and needing a resubmit).

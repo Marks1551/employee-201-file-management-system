@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Employee, Notification } from "@/shared/types";
 
-export type FacultyNotificationKind = "missing" | "rejected" | "pending" | "expiring";
+export type FacultyNotificationKind = "missing" | "rejected" | "pending" | "expiring" | "announcement";
+
+/** The bits of an announcement the bell needs. */
+export interface AnnouncementAlert {
+  id: string;
+  title: string;
+  body: string;
+  when: string | null;
+}
 
 export interface FacultyNotification {
   id: string;
@@ -42,7 +50,12 @@ function load(employeeId: string): Stored {
  * browser. An item's id includes its status/timestamp, so the same document being rejected (or
  * requested) again shows up as a fresh notification.
  */
-export function useFacultyNotifications(employee: Employee | null, enabled: boolean, alerts: Notification[] = []) {
+export function useFacultyNotifications(
+  employee: Employee | null,
+  enabled: boolean,
+  alerts: Notification[] = [],
+  announcements: AnnouncementAlert[] = [],
+) {
   const employeeId = employee?.id || "";
   const [stored, setStored] = useState<Stored>({ read: [], dismissed: [] });
 
@@ -110,8 +123,18 @@ export function useFacultyNotifications(employee: Employee | null, enabled: bool
         });
       }
     }
+    for (const a of announcements) {
+      list.push({
+        id: `announcement:${a.id}`,
+        kind: "announcement",
+        title: a.title,
+        detail: a.body.length > 140 ? `${a.body.slice(0, 140).trimEnd()}…` : a.body,
+        when: a.when,
+        href: "/faculty/announcements",
+      });
+    }
     return list;
-  }, [enabled, employee, alerts]);
+  }, [enabled, employee, alerts, announcements]);
 
   const items: FacultyNotification[] = useMemo(
     () =>

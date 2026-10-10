@@ -12,6 +12,7 @@ import {
   UploadCloud,
   Fingerprint,
   MessageSquare,
+  Megaphone,
   UserCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ export const navConfig: Record<Role, NavItem[]> = {
     { to: "/hr/employees", label: "Employee Records", icon: Users },
     { to: "/hr/documents", label: "Document Management", icon: FolderOpen },
     { to: "/hr/search", label: "Search Records", icon: Search },
+    { to: "/hr/announcements", label: "Announcements", icon: Megaphone },
     { to: "/hr/chat", label: "Chat", icon: MessageSquare, badgeKey: "chat" },
     { to: "/hr/reports", label: "Generate Reports", icon: FileBarChart },
     { section: "Account" },
@@ -61,6 +63,7 @@ export const navConfig: Record<Role, NavItem[]> = {
     { to: "/faculty", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/faculty/201file", label: "My 201 File", icon: FileText },
     { to: "/faculty/submit", label: "Submit a Document", icon: UploadCloud, badgeKey: "documents" },
+    { to: "/faculty/announcements", label: "Announcements", icon: Megaphone },
     { to: "/faculty/chat", label: "Chat with HR", icon: MessageSquare, badgeKey: "chat" },
     { section: "Account" },
     { to: "/faculty/change-password", label: "Change Password", icon: KeyRound },

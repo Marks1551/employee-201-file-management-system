@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertTriangle, Clock, CheckCheck, X, BellOff, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, Clock, CheckCheck, X, BellOff, Trash2, XCircle, Megaphone } from "lucide-react";
 import type { FacultyNotificationsApi } from "@/shared/lib/useFacultyNotifications";
 
 interface Props {
@@ -106,13 +106,17 @@ export default function FacultyNotificationDrawer({ open, onClose, notifications
                       className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
                         n.kind === "missing" || n.kind === "rejected"
                           ? "bg-danger-bg text-danger-text"
-                          : "bg-warn-bg text-warn-text"
+                          : n.kind === "announcement"
+                            ? "bg-navy-100 text-navy"
+                            : "bg-warn-bg text-warn-text"
                       }`}
                     >
                       {n.kind === "missing" ? (
                         <AlertTriangle size={18} />
                       ) : n.kind === "rejected" ? (
                         <XCircle size={18} />
+                      ) : n.kind === "announcement" ? (
+                        <Megaphone size={18} />
                       ) : (
                         <Clock size={18} />
                       )}
