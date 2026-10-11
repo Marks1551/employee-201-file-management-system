@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { putObject, deleteObject, deleteObjectsWithPrefix, keyFromPublicUrl } from "@/shared/server/r2";
+import {
+  putObject,
+  deleteObject,
+  deleteObjectsWithPrefix,
+  keyFromPublicUrl,
+  withCacheBust,
+} from "@/shared/server/storage";
 import { getSessionUserId } from "@/features/auth/server/session";
 import { getUserPublic } from "@/features/users/server/service";
 import type { StoredFile, User } from "@/shared/types";
@@ -41,7 +47,7 @@ export async function saveDocumentFile(
   const key = `${prefix}${ext}`;
   const url = await putObject(key, file, file.type);
 
-  return { url: `${url}?v=${Date.now()}`, name: file.name || key, type: file.type };
+  return { url: withCacheBust(url), name: file.name || key, type: file.type };
 }
 
 /** Best-effort delete of a previously stored document object. Never throws. */

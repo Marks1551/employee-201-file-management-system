@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { putObject, deleteObjectsWithPrefix } from "@/shared/server/r2";
+import { putObject, deleteObjectsWithPrefix, withCacheBust } from "@/shared/server/storage";
 import { requireRole } from "@/shared/server/api-helpers";
 import { setUserPhoto, getUserPublic } from "@/features/users/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   await deleteObjectsWithPrefix(`${KEY_PREFIX}/${user.id}.`);
   const url = await putObject(`${KEY_PREFIX}/${user.id}.${ALLOWED_TYPES[file.type]}`, file, file.type);
-  await setUserPhoto(user.id, `${url}?v=${Date.now()}`);
+  await setUserPhoto(user.id, withCacheBust(url));
   await addAuditLog(user.name, roleLabel(user.role), "Updated their profile picture");
 
   return NextResponse.json({ user: await getUserPublic(user.id) });

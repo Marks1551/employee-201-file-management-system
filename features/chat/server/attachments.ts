@@ -2,7 +2,7 @@
 // Files go to the same Cloudflare R2 bucket as the rest of the app's uploads, under
 // chat/{random-uuid}/{safe-file-name} — the random folder makes the URL unguessable.
 import { randomUUID } from "crypto";
-import { putObject } from "@/shared/server/r2";
+import { putObject } from "@/shared/server/storage";
 
 export const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB, same limit as 201-file documents
 

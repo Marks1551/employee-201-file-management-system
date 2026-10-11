@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { putObject, deleteObjectsWithPrefix } from "@/shared/server/r2";
+import { putObject, deleteObjectsWithPrefix, withCacheBust } from "@/shared/server/storage";
 import { requireRole } from "@/shared/server/api-helpers";
 import { getEmployee, setEmployeePhoto } from "@/features/employees/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const key = `${KEY_PREFIX}/${id}.${ext}`;
   const url = await putObject(key, file, file.type);
 
-  const photoUrl = `${url}?v=${Date.now()}`;
+  const photoUrl = withCacheBust(url);
   await setEmployeePhoto(id, photoUrl);
   await addAuditLog(
     user.name,
