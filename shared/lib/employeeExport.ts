@@ -1,6 +1,6 @@
 // Generates a printable "Employee 201 File" summary — everything on file
 // for one employee (personal & employment info, government benefit numbers,
-// education, work experience, training, performance, attendance, and
+// education, work experience, training, performance, and
 // documents) in one document. This is separate from `exportPds`, which
 // renders the official CS Form No. 212 Personal Data Sheet layout; this
 // export is a plain summary of the employee record itself.
@@ -166,19 +166,6 @@ function buildHtml(employee: Employee): string {
     "No performance reviews on file.",
   )}
 
-  <div class="section-h">Attendance</div>
-  ${table(
-    ["Period", "Days Present", "Days Absent", "Days Late", "Remarks"],
-    employee.attendance.map((a) => [
-      esc(a.period),
-      dash(a.daysPresent),
-      dash(a.daysAbsent),
-      dash(a.daysLate),
-      esc(a.remarks),
-    ]),
-    "No attendance records on file.",
-  )}
-
   <div class="section-h">Documents on File</div>
   ${table(
     ["Document", "Status", "Uploaded"],
@@ -196,7 +183,7 @@ function buildHtml(employee: Employee): string {
 /**
  * Builds a print-ready summary of everything on file for one employee
  * (personal & employment info, government IDs, education, work experience,
- * training, performance, attendance, documents) and triggers the browser
+ * training, performance, documents) and triggers the browser
  * print dialog, letting the user save it as a PDF. Prints via a hidden
  * iframe rather than a new tab so it can't be silently blocked by the
  * browser's popup blocker.

@@ -384,21 +384,6 @@ export default function Faculty201File() {
             label: "Government Benefits",
             content: <GovernmentBenefitsForm employee={currentEmployee} readOnly />,
           },
-          {
-            key: "attendance",
-            label: "Attendance",
-            content: readOnlyTable(
-              currentEmployee.attendance,
-              [
-                { key: "period", label: "Period" },
-                { key: "daysPresent", label: "Present" },
-                { key: "daysAbsent", label: "Absent" },
-                { key: "daysLate", label: "Late" },
-                { key: "remarks", label: "Remarks" },
-              ],
-              "No attendance records on file yet.",
-            ),
-          },
         ]}
       />
 

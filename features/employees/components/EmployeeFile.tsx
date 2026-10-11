@@ -50,9 +50,6 @@ export default function HREmployeeFile() {
     addPerformanceReview,
     updatePerformanceReview,
     deletePerformanceReview,
-    addAttendanceRecord,
-    updateAttendanceRecord,
-    deleteAttendanceRecord,
     currentUser,
     ready,
   } = useApp();
@@ -809,38 +806,6 @@ export default function HREmployeeFile() {
             key: "benefits",
             label: "Government Benefits",
             content: <GovernmentBenefitsForm employee={employee} />,
-          },
-          {
-            key: "attendance",
-            label: "Attendance",
-            content: (
-              <RecordManager
-                items={employee.attendance}
-                typeLabel="attendance record"
-                addButtonLabel="Add Attendance Record"
-                emptyMessage="No attendance records on file yet."
-                employeeName={employee.displayName}
-                itemLabel={(r) => r.period}
-                fields={[
-                  { key: "period", label: "Period", required: true, hint: "e.g. August 2026" },
-                  { key: "daysPresent", label: "Days present", type: "number" },
-                  { key: "daysAbsent", label: "Days absent", type: "number" },
-                  { key: "daysLate", label: "Days late", type: "number" },
-                  { key: "remarks", label: "Remarks" },
-                ]}
-                emptyForm={{ period: "", daysPresent: "", daysAbsent: "", daysLate: "", remarks: "" }}
-                columns={[
-                  { key: "period", label: "Period" },
-                  { key: "daysPresent", label: "Present" },
-                  { key: "daysAbsent", label: "Absent" },
-                  { key: "daysLate", label: "Late" },
-                  { key: "remarks", label: "Remarks" },
-                ]}
-                onAdd={(data) => addAttendanceRecord(employee.id, data)}
-                onUpdate={(recordId, patch) => updateAttendanceRecord(employee.id, recordId, patch)}
-                onDelete={(recordId) => deleteAttendanceRecord(employee.id, recordId)}
-              />
-            ),
           },
         ]}
       />
