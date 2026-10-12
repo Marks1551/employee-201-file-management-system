@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu, LogOut, Bell } from "lucide-react";
 import { navConfig, type NavLinkItem } from "./navConfig";
 import NotificationDrawer from "./NotificationDrawer";
+import SkeletonImage from "./SkeletonImage";
 import FacultyNotificationDrawer from "./FacultyNotificationDrawer";
 import { useFacultyNotifications, type AnnouncementAlert } from "@/shared/lib/useFacultyNotifications";
 import { useChatUnread } from "@/features/chat/useChatUnread";
@@ -181,10 +182,12 @@ export default function Layout({ role, eyebrow, title, children }: LayoutProps) 
               </span>
             </div>
             {currentUser?.photoUrl ? (
-              <img
+              <SkeletonImage
                 src={currentUser.photoUrl}
                 alt={`Photo of ${currentUser.name}`}
-                className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
+                wrapperClassName="w-10 h-10 rounded-full flex-shrink-0"
+                className="w-full h-full rounded-full object-cover border border-border"
+                skeletonRounded="rounded-full"
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-[0.95rem] flex-shrink-0">

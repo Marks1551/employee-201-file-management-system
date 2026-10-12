@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import SkeletonImage from "@/shared/components/SkeletonImage";
 import { ArrowLeft, Send, Search, MessageSquare, Loader2, Paperclip, X, FileText } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { Card, Avatar } from "@/shared/components/ui";
@@ -316,11 +317,14 @@ export default function Chat({ role }: { role: "hr" | "faculty" }) {
                         {m.attachment &&
                           (m.attachment.type.startsWith("image/") ? (
                             <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" className="block">
-                              <img
+                              <SkeletonImage
                                 src={m.attachment.url}
                                 alt={m.attachment.name}
                                 loading="lazy"
-                                className={`rounded-lg max-h-64 max-w-full object-cover ${m.body ? "mb-2" : ""}`}
+                                wrapperClassName={`max-w-full ${m.body ? "mb-2" : ""}`}
+                                loadingClassName="w-48 h-40"
+                                className="rounded-lg max-h-64 max-w-full object-cover"
+                                skeletonRounded="rounded-lg"
                               />
                             </a>
                           ) : (

@@ -11,6 +11,7 @@ import { useApp } from "@/shared/context/AppContext";
 import { exportPds } from "@/shared/lib/pds";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import Modal from "@/shared/components/Modal";
+import SkeletonImage, { SkeletonFrame } from "@/shared/components/SkeletonImage";
 import { downloadHref } from "@/shared/lib/downloadUrl";
 import type { DocumentRecord } from "@/shared/types";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
@@ -403,14 +404,19 @@ export default function Faculty201File() {
                 <p className="text-[0.86rem] text-ink-muted mb-3">Reason: {viewDoc.reviewNote}</p>
               )}
               {f.type?.startsWith("image/") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <SkeletonImage
                   src={f.url}
                   alt={viewDoc.name}
                   className="w-full max-h-[70vh] object-contain rounded-xl border border-border bg-navy-100"
+                  wrapperClassName="w-full"
+                  loadingClassName="min-h-[240px]"
                 />
               ) : (
-                <iframe src={f.url} title={viewDoc.name} className="w-full h-[70vh] rounded-xl border border-border" />
+                <SkeletonFrame
+                  src={f.url}
+                  title={viewDoc.name}
+                  className="w-full h-[70vh] rounded-xl border border-border"
+                />
               )}
               <div className="mt-3">
                 <a

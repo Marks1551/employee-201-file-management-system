@@ -1,6 +1,7 @@
 "use client";
 
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import SkeletonImage from "./SkeletonImage";
 import Link from "next/link";
 import { Check, AlertTriangle, ChevronRight as ChevronIcon, type LucideIcon } from "lucide-react";
 
@@ -249,10 +250,12 @@ export function Avatar({ photoUrl, initials, color = "navy", size = "md", classN
   const sizeCls = avatarSizes[size];
   if (photoUrl) {
     return (
-      <img
+      <SkeletonImage
         src={photoUrl}
         alt={initials ? `Photo of ${initials}` : "Employee photo"}
-        className={`${sizeCls} rounded-full object-cover flex-shrink-0 border border-border ${className}`}
+        wrapperClassName={`${sizeCls} rounded-full flex-shrink-0 ${className}`}
+        className="w-full h-full rounded-full object-cover border border-border"
+        skeletonRounded="rounded-full"
       />
     );
   }

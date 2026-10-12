@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Loader2, Camera, Trash2 } from "lucide-react";
+import SkeletonImage from "./SkeletonImage";
 import Layout from "./Layout";
 import { Card, Button, Field, inputCls } from "./ui";
 import { useApp } from "@/shared/context/AppContext";
@@ -86,10 +87,12 @@ export default function ProfilePage({ role }: { role: Role }) {
       <Card className="max-w-md">
         <div className="flex items-center gap-5 flex-wrap">
           {photoUrl ? (
-            <img
+            <SkeletonImage
               src={photoUrl}
               alt="Your profile"
-              className="w-24 h-24 rounded-full object-cover border border-border flex-shrink-0"
+              wrapperClassName="w-24 h-24 rounded-full flex-shrink-0"
+              className="w-full h-full rounded-full object-cover border border-border"
+              skeletonRounded="rounded-full"
             />
           ) : (
             <div className="w-24 h-24 rounded-full bg-navy-100 text-navy flex items-center justify-center font-bold font-display text-3xl flex-shrink-0">

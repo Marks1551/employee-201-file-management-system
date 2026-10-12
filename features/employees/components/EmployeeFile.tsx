@@ -15,6 +15,7 @@ import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBe
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared/lib/roles";
+import SkeletonImage, { SkeletonFrame } from "@/shared/components/SkeletonImage";
 import { downloadHref } from "@/shared/lib/downloadUrl";
 import { exportEmployeeProfile } from "@/shared/lib/employeeExport";
 import { getNameParts, composeFullName, composeDisplayName, type NameParts } from "@/shared/lib/names";
@@ -1006,13 +1007,15 @@ export default function HREmployeeFile() {
               </span>
             </div>
             {viewDoc.pendingFileType?.startsWith("image/") ? (
-              <img
+              <SkeletonImage
                 src={viewDoc.pendingFileUrl}
                 alt={viewDoc.name}
                 className="w-full max-h-[60vh] object-contain rounded-xl border border-border bg-navy-100"
+                wrapperClassName="w-full"
+                loadingClassName="min-h-[240px]"
               />
             ) : (
-              <iframe
+              <SkeletonFrame
                 src={viewDoc.pendingFileUrl}
                 title={viewDoc.name}
                 className="w-full h-[60vh] rounded-xl border border-border"
@@ -1065,13 +1068,15 @@ export default function HREmployeeFile() {
             </div>
             {viewDoc.reviewNote && <p className="text-[0.86rem] text-ink-muted mb-3">Reason: {viewDoc.reviewNote}</p>}
             {viewDoc.pendingFileType?.startsWith("image/") ? (
-              <img
+              <SkeletonImage
                 src={viewDoc.pendingFileUrl}
                 alt={viewDoc.name}
                 className="w-full max-h-[60vh] object-contain rounded-xl border border-border bg-navy-100"
+                wrapperClassName="w-full"
+                loadingClassName="min-h-[240px]"
               />
             ) : (
-              <iframe
+              <SkeletonFrame
                 src={viewDoc.pendingFileUrl}
                 title={viewDoc.name}
                 className="w-full h-[60vh] rounded-xl border border-border"
@@ -1089,13 +1094,15 @@ export default function HREmployeeFile() {
         ) : viewDoc?.fileUrl ? (
           <div>
             {viewDoc.fileType?.startsWith("image/") ? (
-              <img
+              <SkeletonImage
                 src={viewDoc.fileUrl}
                 alt={viewDoc.name}
                 className="w-full max-h-[70vh] object-contain rounded-xl border border-border bg-navy-100"
+                wrapperClassName="w-full"
+                loadingClassName="min-h-[240px]"
               />
             ) : (
-              <iframe
+              <SkeletonFrame
                 src={viewDoc.fileUrl}
                 title={viewDoc.name}
                 className="w-full h-[70vh] rounded-xl border border-border"
@@ -1157,13 +1164,15 @@ export default function HREmployeeFile() {
         {viewCert?.certFileUrl ? (
           <div>
             {viewCert.certFileType?.startsWith("image/") ? (
-              <img
+              <SkeletonImage
                 src={viewCert.certFileUrl}
                 alt={viewCert.course}
                 className="w-full max-h-[70vh] object-contain rounded-xl border border-border bg-navy-100"
+                wrapperClassName="w-full"
+                loadingClassName="min-h-[240px]"
               />
             ) : (
-              <iframe
+              <SkeletonFrame
                 src={viewCert.certFileUrl}
                 title={viewCert.course}
                 className="w-full h-[70vh] rounded-xl border border-border"
