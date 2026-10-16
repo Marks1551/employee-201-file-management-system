@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
-import { Plus, Search, Mail } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Plus, Search, Mail, MoreHorizontal, Pencil, UserX, UserCheck, Trash2 } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { Button, Field, inputCls, RoleBadge, Tag, Avatar } from "@/shared/components/ui";
 import { TableWrap, Th, Td, CellName, CellSub } from "@/shared/components/Table";
@@ -19,8 +19,90 @@ interface UserForm {
   role: Role;
 }
 
+interface RowAction {
+  label: string;
+  icon: ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}
+
+/** One compact "Actions" button per row; the choices open in a small menu instead of a crowd of buttons. */
+function RowActionsMenu({ label, actions }: { label: string; actions: RowAction[] }) {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const open = pos !== null;
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setPos(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (open) return setPos(null);
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    // Open upwards if there isn't room below the button (menu is ~4 rows tall).
+    const menuHeight = actions.length * 40 + 12;
+    const top = r.bottom + menuHeight > window.innerHeight ? Math.max(8, r.top - menuHeight) : r.bottom + 4;
+    setPos({ top, right: Math.max(8, window.innerWidth - r.right) });
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Actions for ${label}`}
+        className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-border bg-white text-navy cursor-pointer hover:bg-navy-100"
+      >
+        <MoreHorizontal size={20} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setPos(null)} aria-hidden="true" />
+          <div
+            role="menu"
+            style={{ top: pos.top, right: pos.right }}
+            className="fixed z-[71] min-w-[190px] bg-white border border-border rounded-xl shadow-pop p-1.5"
+          >
+            {actions.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setPos(null);
+                  a.onClick();
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 min-h-[40px] rounded-lg bg-transparent border-none cursor-pointer text-left text-[0.9rem] font-medium ${
+                  a.danger ? "text-danger-text hover:bg-danger-bg" : "text-ink hover:bg-navy-100"
+                }`}
+              >
+                {a.icon}
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function AdminUsers() {
-  const { users, addUserInvite, setUserStatus, updateUser, resendInvite } = useApp();
+  const { users, currentUser, addUserInvite, setUserStatus, updateUser, resendInvite, deleteUser } = useApp();
   const showToast = useToast();
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -94,6 +176,22 @@ export default function AdminUsers() {
     updateUser(editUser.id, { name: form.name, email: form.email, username: form.username, role: form.role });
     setEditUser(null);
     showToast(`Account updated for ${form.name}.`);
+  }
+
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    const result = await deleteUser(deleteTarget.id);
+    setDeleteBusy(false);
+    if (!result.ok) {
+      showToast(result.error, "error");
+      return;
+    }
+    showToast(`${deleteTarget.name}'s account was deleted.`);
+    setDeleteTarget(null);
   }
 
   function toggleStatus(u: User) {
@@ -172,27 +270,32 @@ export default function AdminUsers() {
                 </Td>
                 <Td>{u.lastActive}</Td>
                 <Td>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" sm onClick={() => openEdit(u)}>
-                      Edit
-                    </Button>
-                    {u.needsPasswordSetup && u.status === "active" && (
-                      <Button variant="secondary" sm onClick={() => handleResendInvite(u)}>
-                        <Mail size={14} />
-                        Resend Invite
-                      </Button>
-                    )}
-                    {u.role !== "admin" &&
-                      (u.status === "active" ? (
-                        <Button variant="danger" sm onClick={() => toggleStatus(u)}>
-                          Deactivate
-                        </Button>
-                      ) : (
-                        <Button variant="secondary" sm onClick={() => toggleStatus(u)}>
-                          Reactivate
-                        </Button>
-                      ))}
-                  </div>
+                  <RowActionsMenu
+                    label={u.name}
+                    actions={[
+                      { label: "Edit account", icon: <Pencil size={16} />, onClick: () => openEdit(u) },
+                      ...(u.needsPasswordSetup && u.status === "active"
+                        ? [{ label: "Resend invite", icon: <Mail size={16} />, onClick: () => handleResendInvite(u) }]
+                        : []),
+                      ...(u.role !== "admin"
+                        ? [
+                            u.status === "active"
+                              ? { label: "Deactivate", icon: <UserX size={16} />, onClick: () => toggleStatus(u) }
+                              : { label: "Reactivate", icon: <UserCheck size={16} />, onClick: () => toggleStatus(u) },
+                          ]
+                        : []),
+                      ...(u.id !== currentUser?.id
+                        ? [
+                            {
+                              label: "Delete account",
+                              icon: <Trash2 size={16} />,
+                              onClick: () => setDeleteTarget(u),
+                              danger: true,
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
                 </Td>
               </tr>
             ))}
@@ -215,6 +318,31 @@ export default function AdminUsers() {
         endIndex={endIndex}
         itemLabel="accounts"
       />
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => (deleteBusy ? null : setDeleteTarget(null))}
+        title={`Delete account — ${deleteTarget?.name || ""}`}
+      >
+        <p className="text-[0.9rem] text-ink-muted mb-2">
+          This permanently deletes the login account for <strong>{deleteTarget?.email}</strong>. They will no longer be
+          able to sign in, and their chat messages are removed.
+        </p>
+        <p className="text-[0.9rem] text-ink-muted mb-4">
+          {deleteTarget?.role === "faculty"
+            ? "Their employee 201 file is not deleted — only the account is."
+            : "This can't be undone."}
+          {deleteTarget?.role === "faculty" ? " This can't be undone." : ""}
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)} disabled={deleteBusy}>
+            Cancel
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={handleDelete} disabled={deleteBusy}>
+            {deleteBusy ? "Deleting…" : "Delete Account"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add new account">
         <form onSubmit={handleAdd}>

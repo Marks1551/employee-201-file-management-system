@@ -129,6 +129,17 @@ export async function updateUser(id: string, patch: Patch<UserInput> & { status?
   await execute(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, params);
 }
 
+/** Permanently deletes a login account. The employee's 201 file (if the account was linked to one)
+ *  is not touched. Chat messages, reset tokens and passkeys belonging to the account go with it. */
+export async function deleteUser(id: string): Promise<void> {
+  await execute("DELETE FROM users WHERE id = ?", [id]);
+}
+
+export async function countAdmins(): Promise<number> {
+  const rows = await query<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'");
+  return Number(rows[0]?.n || 0);
+}
+
 export async function touchLastActive(id: string): Promise<void> {
   await execute("UPDATE users SET last_active = NOW() WHERE id = ?", [id]);
 }

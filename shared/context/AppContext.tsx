@@ -92,6 +92,8 @@ export interface AppContextValue {
   }) => Promise<ActionResult>;
   updateUser: (id: string, patch: Record<string, unknown>) => Promise<void>;
   setUserStatus: (id: string, status: string) => Promise<void>;
+  /** System admin: permanently delete a login account (the employee's 201 file is kept). */
+  deleteUser: (id: string) => Promise<ActionResult>;
   setUserRole: (id: string, role: Role) => Promise<void>;
   changePassword: (userId: string, currentPassword: string, newPassword: string) => Promise<ActionResult>;
   changeUsername: (newUsername: string, currentPassword: string) => Promise<ActionResult>;
@@ -384,6 +386,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await refreshAll();
       } catch (err) {
         console.error("setUserStatus failed:", errorMessage(err));
+      }
+    },
+    [refreshAll],
+  );
+
+  const deleteUser = useCallback(
+    async (id: string): Promise<ActionResult> => {
+      try {
+        await api(`/api/users/${id}`, { method: "DELETE" });
+        await refreshAll();
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
       }
     },
     [refreshAll],
@@ -961,6 +976,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addUserInvite,
     updateUser,
     setUserStatus,
+    deleteUser,
     setUserRole,
     changePassword,
     changeUsername,
