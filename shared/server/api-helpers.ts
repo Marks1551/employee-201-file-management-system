@@ -1,3 +1,4 @@
+import { query } from "@/shared/server/db";
 import { NextResponse } from "next/server";
 import {
   putObject,
@@ -80,13 +81,29 @@ export async function requireRole(...roles: string[]): Promise<User | NextRespon
   return user;
 }
 
+/** True when the employee's 201 file has been marked inactive by HR. */
+export async function isEmployeeInactive(employeeId: string): Promise<boolean> {
+  const rows = await query<{ status: string | null }>("SELECT status FROM employees WHERE id = ?", [employeeId]);
+  return rows[0]?.status === "inactive";
+}
+
+export function inactiveRecordResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "Your employee record is inactive, so you can't make changes. Please contact the HR office." },
+    { status: 403 },
+  );
+}
+
 /** HR/admin may act on any employee record. A faculty user may act only on the
  *  employee record linked to their own account. */
 export async function requireHrOrOwnFaculty(employeeId: string): Promise<User | NextResponse> {
   const user = await requireUser();
   if (user instanceof NextResponse) return user;
   if (user.role === "hr" || user.role === "admin") return user;
-  if (user.role === "faculty" && user.employeeId === employeeId) return user;
+  if (user.role === "faculty" && user.employeeId === employeeId) {
+    if (await isEmployeeInactive(employeeId)) return inactiveRecordResponse();
+    return user;
+  }
   return NextResponse.json({ error: "You do not have permission to do that." }, { status: 403 });
 }
 

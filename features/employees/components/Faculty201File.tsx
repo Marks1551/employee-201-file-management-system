@@ -14,6 +14,7 @@ import Modal from "@/shared/components/Modal";
 import SkeletonImage, { SkeletonFrame } from "@/shared/components/SkeletonImage";
 import { downloadHref } from "@/shared/lib/downloadUrl";
 import type { DocumentRecord } from "@/shared/types";
+import InactiveRecordNotice, { isRecordInactive } from "@/features/employees/components/InactiveRecordNotice";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
 import RecordManager from "@/features/employees/components/RecordManager";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
@@ -95,11 +96,13 @@ export default function Faculty201File() {
   const [viewDoc, setViewDoc] = useState<DocumentRecord | null>(null);
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="My 201 File" />;
+  const inactive = isRecordInactive(currentEmployee);
   const { missingCount, rejectedCount, isComplete } = documentCompletion(currentEmployee.documents);
   const pendingCount = currentEmployee.documents.filter((d) => d.status === "pending").length;
 
   return (
     <Layout role="faculty" eyebrow="Faculty" title="My 201 File">
+      {inactive && <InactiveRecordNotice employee={currentEmployee} />}
       <Card className="flex gap-5 items-center flex-wrap mb-6">
         <Avatar photoUrl={currentEmployee.photoUrl} initials={currentEmployee.initials} color="faculty" size="lg" />
         <div className="flex-1 min-w-[200px]">
@@ -235,6 +238,7 @@ export default function Faculty201File() {
             label: "Educational Background",
             content: (
               <RecordManager
+                readOnly={inactive}
                 items={currentEmployee.education}
                 typeLabel="education record"
                 addButtonLabel="Add Education"
@@ -291,6 +295,7 @@ export default function Faculty201File() {
             label: "Work Experience",
             content: (
               <RecordManager
+                readOnly={inactive}
                 items={currentEmployee.workExperience}
                 typeLabel="work experience record"
                 addButtonLabel="Add Work Experience"
@@ -378,7 +383,7 @@ export default function Faculty201File() {
           {
             key: "pds",
             label: "PDS Details",
-            content: <PdsDetailsForm employee={currentEmployee} />,
+            content: <PdsDetailsForm employee={currentEmployee} readOnly={inactive} />,
           },
           {
             key: "benefits",

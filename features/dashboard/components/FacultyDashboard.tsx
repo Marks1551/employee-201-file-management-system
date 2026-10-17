@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FileText, UploadCloud, AlertTriangle, Calendar, CheckCircle2, XCircle, Eye } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
+import InactiveRecordNotice, { isRecordInactive } from "@/features/employees/components/InactiveRecordNotice";
 import { StatCard, ActionTile } from "@/shared/components/ui";
 import { useApp } from "@/shared/context/AppContext";
 
@@ -17,6 +18,7 @@ export default function FacultyDashboard() {
 
   return (
     <Layout role="faculty" eyebrow="Faculty" title="My Dashboard">
+      {isRecordInactive(currentEmployee) && <InactiveRecordNotice employee={currentEmployee} />}
       {rejected.length > 0 && (
         <div className="flex gap-3 p-4 rounded-2xl border border-danger-border bg-danger-bg text-danger-text mb-5">
           <XCircle size={20} className="flex-shrink-0 mt-0.5" />

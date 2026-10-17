@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { UploadCloud, Paperclip, Eye } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
+import InactiveRecordNotice, { isRecordInactive } from "@/features/employees/components/InactiveRecordNotice";
 import { Card, Button, Field, inputCls, Tag } from "@/shared/components/ui";
 import { TableWrap, Th, Td } from "@/shared/components/Table";
 import { useApp } from "@/shared/context/AppContext";
@@ -54,6 +55,13 @@ export default function SubmitDocument() {
 
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="Submit a Document" />;
+  if (isRecordInactive(currentEmployee)) {
+    return (
+      <Layout role="faculty" eyebrow="Faculty" title="Submit a Document">
+        <InactiveRecordNotice employee={currentEmployee} />
+      </Layout>
+    );
+  }
 
   function pickFile() {
     fileInputRef.current?.click();
