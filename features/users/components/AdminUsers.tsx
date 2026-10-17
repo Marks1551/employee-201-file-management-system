@@ -107,7 +107,12 @@ export default function AdminUsers() {
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [form, setForm] = useState<UserForm>({ name: "", email: "", username: "", role: "hr" });
+  const [form, setForm] = useState<UserForm>({
+    name: "",
+    email: "",
+    username: "",
+    role: "hr",
+  });
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [addName, setAddName] = useState("");
   const [addEmail, setAddEmail] = useState("");
@@ -115,6 +120,7 @@ export default function AdminUsers() {
   const [addError, setAddError] = useState("");
   const [addSubmitting, setAddSubmitting] = useState(false);
 
+  const addEmailError = addError.toLowerCase().includes("email");
   const requiresEmployeeNumber = addRole === "faculty";
 
   const filtered = useMemo(() => {
@@ -166,14 +172,36 @@ export default function AdminUsers() {
   }
 
   function openEdit(u: User) {
+    setEditError("");
     setEditUser(u);
-    setForm({ name: u.name, email: u.email, username: u.username, role: u.role });
+    setForm({
+      name: u.name,
+      email: u.email,
+      username: u.username,
+      role: u.role,
+    });
   }
 
-  function handleEditSave(e: FormEvent) {
+  const [editError, setEditError] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  async function handleEditSave(e: FormEvent) {
     e.preventDefault();
     if (!editUser) return;
-    updateUser(editUser.id, { name: form.name, email: form.email, username: form.username, role: form.role });
+    setEditError("");
+    setEditSaving(true);
+    const result = await updateUser(editUser.id, {
+      name: form.name,
+      email: form.email,
+      username: form.username,
+      role: form.role,
+    });
+    setEditSaving(false);
+    if (!result.ok) {
+      // Keep the form open so the admin can fix the email/username right away.
+      setEditError(result.error);
+      return;
+    }
     setEditUser(null);
     showToast(`Account updated for ${form.name}.`);
   }
@@ -270,32 +298,52 @@ export default function AdminUsers() {
                 </Td>
                 <Td>{u.lastActive}</Td>
                 <Td>
-                  <RowActionsMenu
-                    label={u.name}
-                    actions={[
-                      { label: "Edit account", icon: <Pencil size={16} />, onClick: () => openEdit(u) },
-                      ...(u.needsPasswordSetup && u.status === "active"
-                        ? [{ label: "Resend invite", icon: <Mail size={16} />, onClick: () => handleResendInvite(u) }]
-                        : []),
-                      ...(u.role !== "admin"
-                        ? [
-                            u.status === "active"
-                              ? { label: "Deactivate", icon: <UserX size={16} />, onClick: () => toggleStatus(u) }
-                              : { label: "Reactivate", icon: <UserCheck size={16} />, onClick: () => toggleStatus(u) },
-                          ]
-                        : []),
-                      ...(u.id !== currentUser?.id
-                        ? [
-                            {
-                              label: "Delete account",
-                              icon: <Trash2 size={16} />,
-                              onClick: () => setDeleteTarget(u),
-                              danger: true,
-                            },
-                          ]
-                        : []),
-                    ]}
-                  />
+                  <div className="flex items-center gap-2">
+                    <RowActionsMenu
+                      label={u.name}
+                      actions={[
+                        {
+                          label: "Edit account",
+                          icon: <Pencil size={16} />,
+                          onClick: () => openEdit(u),
+                        },
+                        ...(u.needsPasswordSetup && u.status === "active"
+                          ? [
+                              {
+                                label: "Resend invite",
+                                icon: <Mail size={16} />,
+                                onClick: () => handleResendInvite(u),
+                              },
+                            ]
+                          : []),
+                        ...(u.role !== "admin"
+                          ? [
+                              u.status === "active"
+                                ? {
+                                    label: "Deactivate",
+                                    icon: <UserX size={16} />,
+                                    onClick: () => toggleStatus(u),
+                                  }
+                                : {
+                                    label: "Reactivate",
+                                    icon: <UserCheck size={16} />,
+                                    onClick: () => toggleStatus(u),
+                                  },
+                            ]
+                          : []),
+                        ...(u.id !== currentUser?.id
+                          ? [
+                              {
+                                label: "Delete account",
+                                icon: <Trash2 size={16} />,
+                                onClick: () => setDeleteTarget(u),
+                                danger: true,
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  </div>
                 </Td>
               </tr>
             ))}
@@ -397,9 +445,12 @@ export default function AdminUsers() {
               <Field label="Email address" hint="Their account setup link will be sent here.">
                 <input
                   type="email"
-                  className={inputCls}
+                  className={`${inputCls} ${addEmailError ? "!border-danger-border" : ""}`}
                   value={addEmail}
-                  onChange={(e) => setAddEmail(e.target.value)}
+                  onChange={(e) => {
+                    setAddEmail(e.target.value);
+                    setAddError("");
+                  }}
                   placeholder="e.g. maria.santos@lssti.edu.ph"
                   required
                 />
@@ -421,6 +472,14 @@ export default function AdminUsers() {
 
       <Modal open={!!editUser} onClose={() => setEditUser(null)} title={`Edit account — ${editUser?.name || ""}`}>
         <form onSubmit={handleEditSave}>
+          {editError && (
+            <p
+              role="alert"
+              className="text-[0.86rem] text-danger-text bg-danger-bg border border-danger-border rounded-lg px-3 py-2.5 mb-4"
+            >
+              {editError}
+            </p>
+          )}
           <Field label="Full name">
             <input
               className={inputCls}
@@ -432,9 +491,12 @@ export default function AdminUsers() {
           <Field label="Email address">
             <input
               type="email"
-              className={inputCls}
+              className={`${inputCls} ${editError.toLowerCase().includes("email") ? "!border-danger-border" : ""}`}
               value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, email: e.target.value });
+                setEditError("");
+              }}
               required
             />
           </Field>
@@ -457,8 +519,8 @@ export default function AdminUsers() {
               <option value="faculty">Faculty</option>
             </select>
           </Field>
-          <Button type="submit" className="w-full mt-2">
-            Save Changes
+          <Button type="submit" className="w-full mt-2" disabled={editSaving}>
+            {editSaving ? "Saving…" : "Save Changes"}
           </Button>
         </form>
       </Modal>

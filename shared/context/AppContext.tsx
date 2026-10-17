@@ -90,7 +90,7 @@ export interface AppContextValue {
     email?: string;
     role: Role;
   }) => Promise<ActionResult>;
-  updateUser: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  updateUser: (id: string, patch: Record<string, unknown>) => Promise<ActionResult>;
   setUserStatus: (id: string, status: string) => Promise<void>;
   /** System admin: permanently delete a login account (the employee's 201 file is kept). */
   deleteUser: (id: string) => Promise<ActionResult>;
@@ -368,12 +368,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const updateUser = useCallback(
-    async (id: string, patch: Record<string, unknown>) => {
+    async (id: string, patch: Record<string, unknown>): Promise<ActionResult> => {
       try {
         await api(`/api/users/${id}`, { method: "PATCH", body: patch });
         await refreshAll();
+        return { ok: true };
       } catch (err) {
-        console.error("updateUser failed:", errorMessage(err));
+        return { ok: false, error: errorMessage(err) };
       }
     },
     [refreshAll],

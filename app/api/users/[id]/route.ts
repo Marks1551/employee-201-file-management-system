@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireRole } from "@/shared/server/api-helpers";
-import { getUserPublic, updateUser, deleteUser, countAdmins } from "@/features/users/server/service";
+import {
+  getUserPublic,
+  updateUser,
+  deleteUser,
+  countAdmins,
+  findEmailConflict,
+  findUsernameConflict,
+} from "@/features/users/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel } from "@/shared/lib/roles";
 
@@ -15,7 +22,46 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const existing = await getUserPublic(id);
   if (!existing) return NextResponse.json({ error: "Account not found." }, { status: 404 });
 
-  await updateUser(id, patch);
+  // Email and username must be unique across accounts — say so clearly instead of failing silently.
+  if (typeof patch.email === "string") {
+    patch.email = patch.email.trim();
+    if (!patch.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(patch.email)) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+    const owner = await findEmailConflict(patch.email, id);
+    if (owner) {
+      return NextResponse.json(
+        {
+          error: `The email address ${patch.email} is already used by another account (${owner}). Please use a different email.`,
+        },
+        { status: 409 },
+      );
+    }
+  }
+  if (typeof patch.username === "string") {
+    patch.username = patch.username.trim();
+    if (!patch.username) return NextResponse.json({ error: "Username is required." }, { status: 400 });
+    const owner = await findUsernameConflict(patch.username, id);
+    if (owner) {
+      return NextResponse.json(
+        { error: `The username "${patch.username}" is already taken by ${owner}. Please choose another.` },
+        { status: 409 },
+      );
+    }
+  }
+
+  try {
+    await updateUser(id, patch);
+  } catch (err) {
+    // Safety net for a race between the check above and the update.
+    if ((err as { code?: string }).code === "ER_DUP_ENTRY") {
+      return NextResponse.json(
+        { error: "That email address or username is already used by another account." },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 
   if ("status" in patch) {
     await addAuditLog(

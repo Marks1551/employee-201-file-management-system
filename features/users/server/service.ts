@@ -111,6 +111,24 @@ const USER_COLUMNS: Record<string, string> = {
   employeeId: "employee_id",
 };
 
+/** Name of the account already using this email address (ignoring case and, when editing, the account itself), or null. */
+export async function findEmailConflict(email: string, excludeUserId?: string): Promise<string | null> {
+  const rows = await query<{ name: string }>("SELECT name FROM users WHERE LOWER(email) = ? AND id <> ? LIMIT 1", [
+    email.trim().toLowerCase(),
+    excludeUserId || "",
+  ]);
+  return rows.length ? rows[0].name : null;
+}
+
+/** Name of the account already using this username, or null. */
+export async function findUsernameConflict(username: string, excludeUserId?: string): Promise<string | null> {
+  const rows = await query<{ name: string }>("SELECT name FROM users WHERE LOWER(username) = ? AND id <> ? LIMIT 1", [
+    username.trim().toLowerCase(),
+    excludeUserId || "",
+  ]);
+  return rows.length ? rows[0].name : null;
+}
+
 export async function updateUser(id: string, patch: Patch<UserInput> & { status?: string }): Promise<void> {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -160,12 +178,18 @@ export async function createAccountForEmployeeNumber(
       error: `${employee.displayName} has no email address on file. Add one to their 201 file first.`,
     };
 
-  const [existingByEmployee, existingByEmail] = await Promise.all([
+  const [existingByEmployee, emailOwner] = await Promise.all([
     query<{ id: string }>("SELECT id FROM users WHERE employee_id = ?", [employee.id]),
-    query<{ id: string }>("SELECT id FROM users WHERE LOWER(email) = ?", [employee.email.toLowerCase()]),
+    findEmailConflict(employee.email),
   ]);
-  if (existingByEmployee.length || existingByEmail.length) {
+  if (existingByEmployee.length) {
     return { ok: false, error: `${employee.displayName} already has an account.` };
+  }
+  if (emailOwner) {
+    return {
+      ok: false,
+      error: `The email address ${employee.email} on ${employee.displayName}'s 201 file is already used by another account (${emailOwner}). Each account needs its own email — change one of them first.`,
+    };
   }
 
   return provisionAccount({ name: employee.displayName, email: employee.email, role, employeeId: employee.id });
@@ -185,10 +209,13 @@ export async function createAccountDirect(params: {
   if (!name) return { ok: false, error: "Full name is required." };
   if (!email) return { ok: false, error: "Email address is required." };
 
-  const existingByEmail = await query<{ id: string }>("SELECT id FROM users WHERE LOWER(email) = ?", [
-    email.toLowerCase(),
-  ]);
-  if (existingByEmail.length) return { ok: false, error: `An account with the email "${email}" already exists.` };
+  const emailOwner = await findEmailConflict(email);
+  if (emailOwner) {
+    return {
+      ok: false,
+      error: `The email address ${email} is already used by another account (${emailOwner}). Please use a different email.`,
+    };
+  }
 
   return provisionAccount({ name, email, role: params.role, employeeId: null });
 }
