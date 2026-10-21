@@ -37,8 +37,8 @@ export default function Login() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    if (!username.trim() || !password.trim()) {
-      setError("Please enter both your username/employee ID and password.");
+    if (!username.trim() || !password) {
+      setError("Please enter your username or employee ID and password.");
       return;
     }
     const result = await login(username, password);
@@ -116,7 +116,10 @@ export default function Login() {
           </div>
 
           {error && (
-            <p className="text-[0.86rem] text-danger-text bg-danger-bg border border-danger-border rounded-lg px-3 py-2.5 mb-4">
+            <p
+              role="alert"
+              className="text-[0.86rem] text-danger-text bg-danger-bg border border-danger-border rounded-lg px-3 py-2.5 mb-4"
+            >
               {error}
             </p>
           )}

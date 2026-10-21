@@ -1,178 +1,277 @@
-# Employee 201 File Management System (Next.js + MySQL)
+# Employee 201 File Management System
 
-A full-stack **Next.js 15 (App Router)** app with a real **MySQL** backend: session-based
-auth (JWTs in an httpOnly cookie), bcrypt-hashed passwords, and a REST API backing every
-screen. No more `localStorage` — data survives restarts and is shared across users/devices.
+A web app for managing employee **201 files** (personnel records) for a school: employee
+records and Personal Data Sheet (PDS) details, required-document tracking with an
+HR approval workflow, notifications, announcements, HR–faculty chat, reports, audit
+logging and database backup, with role-based access for **Admin**, **HR Personnel** and
+**Faculty**.
+
+Built with **Next.js 15 (App Router)**, **React 19**, **TypeScript**, **Tailwind CSS v4**
+and **MySQL**. Uploaded files (documents, photos, chat attachments) are stored in
+**Firebase Storage**.
+
+## Features
+
+**Faculty**
+
+- View their own 201 file and which required documents are on file, missing or rejected
+- Submit documents for HR review (status becomes _pending_ until HR approves or rejects)
+- Receive announcements and chat with HR
+
+**HR Personnel**
+
+- Create, edit, deactivate and delete employee records, including photo, employment
+  status (Regular / Contractual with contract end date), department and PDS details
+- Manage each employee's PDS sections: education, work experience, civil service
+  eligibility, voluntary work, trainings (with certificates), references, performance
+  reviews, attendance and government benefits
+- Upload documents directly, or **approve / reject** documents submitted by faculty
+- Add or remove required document types for all employees
+- Search records, publish announcements, chat with faculty
+- Generate Excel reports (Employee List, Document Status) and export or print an
+  individual employee's file
+
+**Admin**
+
+- Create and invite user accounts, assign roles, activate / deactivate accounts
+- View the audit log of system activity
+- Download a full SQL backup of the database
+
+**Everyone**
+
+- Username/password sign-in, **fingerprint login** (WebAuthn / passkeys), forgot-password
+  email flow, change password and username, profile photo
+- Persisted notifications (missing documents, expiring training certificates, pending
+  submissions, PDS updates) with an unread badge in the sidebar
+
+## Tech stack
+
+| Area         | Tools                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------- |
+| Framework    | Next.js 15 (App Router, route handlers), React 19, TypeScript                          |
+| Styling / UI | Tailwind CSS v4, lucide-react icons                                                    |
+| Database     | MySQL via `mysql2` (connection pool)                                                   |
+| Auth         | JWT in an httpOnly cookie (`jsonwebtoken`), `bcryptjs`, WebAuthn (`@simplewebauthn/*`) |
+| File storage | Firebase Storage via `firebase-admin`                                                  |
+| Email        | `nodemailer` (SMTP)                                                                    |
+| Reports      | `exceljs`                                                                              |
 
 ## Quick start
 
+**Prerequisites:** Node.js 18.18+ (required by Next.js 15) and a running MySQL server.
+
 ```bash
 npm install
-cp .env.example .env.local     # then edit .env.local with your MySQL credentials
-npm run db:seed                # creates the database/tables and loads demo data
-npm run dev                    # http://localhost:3000
+# create .env.local (see "Environment variables" below), then:
+npm run db:seed     # creates the database and tables, loads demo data
+npm run dev         # http://localhost:3000
 ```
 
-`npm run db:seed` is **safe to re-run any time** — it applies `db/schema.sql` (creating
-tables if they don't exist yet), then wipes and reloads the demo data. Handy for resetting
-things back to a clean state before a demo.
+> ⚠️ **`npm run db:seed` is destructive.** It applies `db/schema.sql`, drops
+> `webauthn_credentials`, **truncates every table** and reloads the demo data. It is handy
+> for resetting a local or demo database, but **never run it against a database that holds
+> real data.**
 
-Default password for every seeded account is `lssti123` (or use a "Quick access" demo
-button on the login screen).
+In development, the login screen shows **quick access** buttons that sign you in as any
+role without a password.
 
-## `db/`
+### Demo accounts
+
+Every seeded account uses the password **`lssti123`**.
+
+| Role    | Username                             |
+| ------- | ------------------------------------ |
+| Admin   | `rsantos`                            |
+| HR      | `areyes`                             |
+| Faculty | `jvillareal`, `cbautista`, `tmendez` |
+
+## Environment variables
+
+Create `.env.local` in the project root. (`.env*` files are gitignored, so there is no
+`.env.example` in the repository — use the template below.)
+
+```bash
+# --- App mode ---
+NEXT_PUBLIC_APP_ENV=development        # "development" or "production"
+APP_URL=http://localhost:3000          # base URL used in email links
+
+# --- MySQL ---
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=e201_fms
+
+# --- Sessions ---
+JWT_SECRET=change-me-to-a-long-random-string
+
+# --- Firebase Storage (documents, photos, chat attachments) ---
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+
+# --- Email (optional in development) ---
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
+
+# --- Fingerprint login (optional) ---
+WEBAUTHN_RP_ID=
+WEBAUTHN_ORIGIN=
+```
+
+| Variable                                                  | Purpose                                                                                                                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_ENV`                                     | Explicit dev/production switch. Falls back to `NODE_ENV` if unset. See [Development vs. production](#development-vs-production-mode).                                                       |
+| `APP_URL`                                                 | Base URL used to build links in account-setup and password-reset emails.                                                                                                                    |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL connection. `DB_NAME` defaults to `e201_fms`.                                                                                                                                         |
+| `JWT_SECRET`                                              | Signs session cookies. Must be a long random string in production.                                                                                                                          |
+| `FIREBASE_*`                                              | Firebase service-account credentials and bucket (Firebase console → Project settings → Service accounts). Keep the `\n` escapes if the private key is on one line. Required for any upload. |
+| `SMTP_*`                                                  | Outgoing mail. If `SMTP_HOST` is blank, emails are logged to the server console instead of sent.                                                                                            |
+| `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN`                       | Optional overrides for fingerprint login in production. Default to the host/origin of `APP_URL`. In development they are taken from the incoming request.                                   |
+| `R2_*`                                                    | Legacy Cloudflare R2 settings, only used by `db/migrate-r2-to-firebase.mjs` (and see the note under [Known issues](#known-issues)).                                                         |
+
+## Project structure
 
 ```
-db/
-  schema.sql   MySQL DDL — the single source of truth for every table (employees,
-               documents, trainings, users, audit_log, app_meta)
-  seed.mjs     Applies schema.sql, then wipes and reloads demo data
-               (run via `npm run db:seed`)
+app/            Next.js routes: pages per role (admin/, hr/, faculty/), auth pages,
+                and REST route handlers under app/api/
+features/       Feature modules, each with components/ (UI) and server/ (data access):
+                  auth, users, employees (incl. documents), notifications,
+                  announcements, chat, audit-log, backup, dashboard, mailer
+shared/
+  components/   Layout, Modal, Table, Tabs, Pagination, nav config, shared pages
+  context/      AppContext (API-backed client state) and ToastContext
+  lib/          Client/server-safe helpers: roles, env, PDS, Excel/print/export
+  server/       DB pool, Firebase storage, API guards, meta key/value store
+db/             schema.sql, seed.mjs and maintenance scripts
+public/         Logo, favicon, icons
+instrumentation.ts   Production startup validation
 ```
 
-Prefer to create the database yourself (phpMyAdmin, MySQL Workbench, `mysql` CLI) instead
-of letting the script do it? Run `db/schema.sql` directly:
+The `@/*` import alias maps to the project root.
+
+## Database
+
+`db/schema.sql` is the single source of truth for the schema; `db/seed.mjs` reads that exact
+file, so there is nothing to keep in sync.
+
+| Group           | Tables                                                                                                                                                                 |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Employees & PDS | `employees`, `education`, `work_experience`, `civil_service_eligibility`, `voluntary_work`, `pds_references`, `trainings`, `performance_reviews`, `attendance_records` |
+| Documents       | `documents`, `document_requirements`, `removed_document_requirements`                                                                                                  |
+| Accounts & auth | `users`, `account_setup_tokens`, `webauthn_credentials`                                                                                                                |
+| Activity        | `audit_log`, `notifications`, `messages`, `app_meta`                                                                                                                   |
+
+Prefer to create the database yourself (phpMyAdmin, MySQL Workbench, CLI)?
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS e201_fms CHARACTER SET utf8mb4"
 mysql -u root -p e201_fms < db/schema.sql
-npm run db:seed   # still safe to run afterward — it'll just seed the data
 ```
 
-If you ever change the schema, edit `db/schema.sql` only — `db/seed.mjs` reads that exact
-file at runtime, so there's nothing to keep in sync between the two.
+Only run `npm run db:seed` afterward if you want the demo data (it will wipe existing rows).
 
-## What else is in the backend
+### Scripts in `db/`
 
-```
-lib/
-  db.js            MySQL connection pool (mysql2)
-  auth.js          JWT session tokens, httpOnly cookie helpers
-  roles.js         Shared role-label helpers + timestamp formatting
-  models.js        All data access: employees, documents, trainings, users, audit log, meta
-  api-helpers.js   requireUser() / requireRole() guards for route handlers
+| Command                                                    | What it does                                                                                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run db:seed`                                          | Applies the schema, **wipes** all tables and loads demo data.                                                                                           |
+| `node db/backfill-required-documents.mjs`                  | Adds any missing required-document rows (marked _missing_) and matching HR notifications to **existing** employees. Safe to re-run; does not wipe data. |
+| `node --env-file=.env.local db/migrate-r2-to-firebase.mjs` | One-time migration of files from Cloudflare R2 to Firebase Storage, rewriting saved links. Supports `--dry-run`. Old R2 files are not deleted.          |
 
-app/api/
-  auth/login, auth/demo, auth/logout, auth/me, auth/change-password
-  employees, employees/[id], employees/[id]/documents/[docId]
-  documents/submit
-  users, users/[id]
-  audit-log
-  meta
-  backup
-```
+## How it works
 
-### Database schema
+### Authentication and roles
 
-- **employees** — personal + employment info
-- **documents** — one row per document type per employee (status: uploaded/missing)
-- **trainings** — training/certification records per employee
-- **users** — login accounts (bcrypt `password_hash`, role, status, optional link to an employee)
-- **audit_log** — activity feed shown on the admin dashboard / audit log page
-- **notifications** — persisted alerts (missing documents, expiring training certs), kept in sync automatically — see below
-- **app_meta** — small key/value store (currently just `lastBackup`)
+Sign-in issues a signed JWT stored in an **httpOnly, sameSite=lax** cookie
+(`e201_session`, 7-day expiry, `secure` in production). Passwords are hashed with
+`bcryptjs` and never sent to the client. Every API route calls `requireUser()` or
+`requireRole(...)` from `shared/server/api-helpers.ts`.
 
-All foreign keys cascade sensibly (deleting an employee removes their documents/trainings;
-deleting a linked employee just nulls out `users.employee_id`).
+| Capability                              | Admin | HR  | Faculty |
+| --------------------------------------- | :---: | :-: | :-----: |
+| Manage user accounts, invites, roles    |  ✅   |     |         |
+| Database backup                         |  ✅   |     |         |
+| Create / edit / delete employee records |  ✅   | ✅  |         |
+| Approve / reject submitted documents    |  ✅   | ✅  |         |
+| Manage required document types          |  ✅   | ✅  |         |
+| Post announcements                      |  ✅   | ✅  |         |
+| Chat (HR ↔ Faculty)                     |       | ✅  |   ✅    |
+| Submit documents                        |       |     |   ✅    |
 
-### Auth
+**Account setup and password reset** use single-use, expiring tokens delivered by email.
+**Fingerprint login** uses WebAuthn: the device keeps the private key and unlocks it with its
+own fingerprint sensor; the server stores only the public key and no biometric data. A
+fingerprint is bound to the domain it was registered on, so changing the production domain
+invalidates registered fingerprints.
 
-Login issues a signed JWT stored in an **httpOnly, sameSite=lax** cookie
-(`e201_session`, 7-day expiry). Every API route calls `requireUser()` or
-`requireRole(...)` from `lib/api-helpers.js` to check the session and, where relevant,
-the role — e.g. only `admin` can create/edit user accounts or trigger a backup; only
-`hr`/`admin` can create or edit employee records or mark documents uploaded.
+### Document workflow
 
-Passwords are hashed with `bcryptjs` and never sent to the client. Changing your own
-password (`/api/auth/change-password`) verifies the current password server-side.
+Each employee has one row per required document type. A document is `missing`,
+`pending` (faculty submitted a file, awaiting review), `uploaded` (on file) or `rejected`.
+Approving a submission makes it the file of record; rejecting it returns it to the
+employee for replacement. A 201 file counts as **Complete** only when nothing is missing
+and nothing is rejected.
 
-### Employee deletion
+Default required documents: Government-Issued ID, Diploma / Transcript of Records, NBI
+Clearance, Employment Contract, Medical Certificate, License and PRC. HR can add or remove
+types; new employees pick up the current list.
 
-HR/Admin can permanently delete an employee's 201 file from their record page (the
-"Delete" button next to Edit, with a confirmation modal). Deleting an employee cascades
-to their documents, training records, and notifications; a linked user account, if any,
-is **not** deleted — it's just unlinked (`employee_id` set to `NULL`) so no login access
-is silently destroyed.
+### Notifications
 
-### Notifications (persisted entity)
+Notifications are a real table, kept in sync automatically rather than computed on page
+load. Whenever a document or training changes, or an employee is created, the system
+reconciles that employee's notifications: it creates one the moment a document goes
+missing, a certificate starts expiring, a submission is pending or a PDS is updated, and
+removes it as soon as it no longer applies. They can be marked read individually or all at
+once.
 
-Notifications are a real table, not something computed on page load. `syncNotificationsForEmployee()`
-in `lib/models.js` reconciles the `notifications` table against an employee's current
-document/training status every time something relevant changes — a document is uploaded,
-a document is submitted by faculty, or a new employee is created. It creates a
-notification the moment a document goes missing or a training starts expiring, and
-deletes it the moment that's no longer true — so nothing needs to be "computed" when the
-Notifications page loads; it just reads what's there. Notifications can be marked read
-individually or all at once, and the sidebar badge reflects the persisted unread count.
+### Employee records, deactivation and deletion
 
-### Employee photos
+HR/Admin can **deactivate** an employee's 201 file with a reason (Resigned, End of Contract,
+Retired, Job Abandonment or Terminated), which keeps the record but marks it inactive.
+They can also **permanently delete** a record. Deleting cascades to the employee's
+documents, trainings and notifications; a linked user account is **not** deleted, only
+unlinked (`employee_id` set to `NULL`), so no login is silently destroyed.
 
-HR/Admin can attach a photo when **creating** a new employee record (in the "Add
-Employee" form), and can upload or remove one later from the employee's 201 file page
-(hover the avatar → camera icon). Photos are validated (JPG/PNG/WEBP, up to 5MB), saved
-to `public/uploads/employees/{employeeId}.{ext}` (gitignored — this is runtime-generated,
-not source), and the employee's `photo_url` column points at it. Employees without a
-photo fall back to their initials in a colored circle everywhere in the UI (see the
-`Avatar` component in `components/ui.jsx`).
+### Files and photos
+
+Documents, employee/profile photos and chat attachments are uploaded to Firebase Storage
+(`shared/server/storage.ts`) because serverless/container hosts have ephemeral filesystems.
+Limit: 10 MB per file (photos, 201-file documents and chat attachments). Chat accepts images, PDF, Word, Excel, PowerPoint, TXT and CSV
+(types that can execute in a browser, such as HTML/SVG/JS, are rejected). Employees without a
+photo show their initials in a colored circle.
 
 ### Backup
 
-`POST /api/backup` (admin only) tries to run `mysqldump` and writes a real `.sql` file to
-a local `backups/` folder (gitignored). If `mysqldump` isn't available on the host, it
-automatically falls back to writing a JSON export of employees/users/audit log instead —
-so the action stays functional either way.
+`POST /api/backup` (admin only) generates a full `.sql` dump of every table in pure Node
+(no `mysqldump` required) and returns it as a download. The time of the last backup is
+recorded and the action is written to the audit log.
 
-## Frontend
+### Reports and exports
 
-Unchanged in spirit from the original SPA — same screens, same Tailwind v4 styling
-(`app/globals.css`), same component structure. The one structural change is
-`context/AppContext.jsx`: it now calls the API above instead of reading/writing
-`localStorage`, but exposes the **same functions** (`login`, `addEmployee`,
-`uploadDocument`, `changePassword`, etc.), so the view components needed almost no
-changes.
-
-```
-app/          Route wrappers (ProtectedRoute + the real view)
-views/        Actual screen components (old src/pages)
-components/   Shared UI (Layout, Modal, Tabs, ui.jsx, ...)
-context/      AppContext (now API-backed) + ToastContext
-db/           schema.sql + seed.mjs (see above)
-public/       Logo, favicon, icons
-```
-
-## Environment variables
-
-See `.env.example`:
-
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_APP_ENV` | `development` or `production` — see [Development vs. production mode](#development-vs-production-mode) below |
-| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL connection |
-| `JWT_SECRET` | Signs session cookies — set a long random string in production |
-| `APP_URL` | Base URL used to build links inside emails |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Outgoing mail — if `SMTP_HOST` is blank, emails are logged instead of sent |
+HR can generate an **Employee List Report** and a **Document Status Report** as Excel
+workbooks, and export or print an individual employee's 201 file.
 
 ## Development vs. production mode
 
-The app has one explicit mode switch, `NEXT_PUBLIC_APP_ENV` (`shared/lib/env.ts`), set via
-environment variable rather than hard-coded, so you can flip it per-deployment without
-touching code. It falls back to Next's own `NODE_ENV` if left unset, so local `npm run dev`
-needs no configuration.
+The app has one explicit mode switch, `NEXT_PUBLIC_APP_ENV` (`shared/lib/env.ts`), so you can
+flip it per deployment without touching code. It falls back to `NODE_ENV`, so a plain
+`npm run dev` needs no configuration.
 
-What it controls:
-
-- **Quick-access demo login** — the "sign in instantly as any role, no password" buttons on
-  the login screen. These only render, and the underlying API route only accepts requests,
-  in development. In production the route returns 404 regardless of what the client sends.
-- **Session cookie security** — the session cookie is marked `secure` (HTTPS-only) in
-  production.
-- **Startup validation** (`instrumentation.ts`) — when the server starts in production
-  mode, it refuses to boot if `JWT_SECRET` is missing/still the dev default, `DB_PASSWORD`
-  is empty, or `APP_URL` still points at `localhost`. It also warns (without failing) if
-  `SMTP_HOST` isn't set, since that means account-setup/reset emails won't actually send.
-- **Logging** — the local SMTP-not-configured fallback logs full email content (handy for
-  dev); in production it just logs a one-line warning instead, so reset links don't end up
-  in server logs.
+- **Quick-access demo login**: the passwordless role buttons and the `/api/auth/demo` route
+  exist only in development. In production the route returns 404.
+- **Session cookie**: marked `secure` (HTTPS-only) in production.
+- **Startup validation** (`instrumentation.ts`): in production the server refuses to start if
+  `JWT_SECRET` is missing or still the dev default, `DB_PASSWORD` is empty, or `APP_URL` is
+  unset or points at `localhost`. It warns (without failing) if `SMTP_HOST` is not set.
+- **Logging**: with no SMTP configured, development logs the full email (handy for setup
+  links); production logs only a one-line warning so links don't end up in server logs.
 
 ## Production
 
@@ -181,8 +280,32 @@ npm run build
 npm start
 ```
 
-Before starting: set real environment variables on your host (not just a local
-`.env.local`), including `NEXT_PUBLIC_APP_ENV=production`, and make sure `npm run db:seed`
-(or `db/schema.sql`) has been run at least once against that database. The server will
-refuse to start if required production secrets are missing — see the checklist at the
-bottom of `.env.example`.
+Before starting, set real environment variables on your host (not just a local
+`.env.local`), including `NEXT_PUBLIC_APP_ENV=production`, and make sure `db/schema.sql` has
+been applied to the production database. **Do not use `npm run db:seed` on production**,
+since it truncates every table.
+
+The repo includes a `nixpacks.toml` for [Railway](https://railway.app) deployments (Nixpacks
+builds). It installs the MySQL client tools; the in-app backup no longer needs them, so
+that step is optional.
+
+## Scripts
+
+| Command           | Description                                         |
+| ----------------- | --------------------------------------------------- |
+| `npm run dev`     | Start the dev server on port 3000                   |
+| `npm run build`   | Production build                                    |
+| `npm start`       | Run the production build                            |
+| `npm run lint`    | Run `next lint`                                     |
+| `npm run db:seed` | Apply schema and reload demo data (**destructive**) |
+
+## Known issues
+
+- `app/api/files/download/route.ts` still imports from the legacy `shared/server/r2.ts`
+  instead of `shared/server/storage.ts`. Its `keyFromPublicUrl` only recognizes URLs under
+  `R2_PUBLIC_URL`, so "Download" links for files stored in Firebase will likely return
+  _"Unknown file."_ until the import is switched to `storage.ts`.
+- `db/backfill-required-documents.mjs` mentions an `npm run db:backfill-docs` script that is
+  not defined in `package.json`; run it with `node` as shown above.
+- Both `package-lock.json` and `pnpm-lock.yaml` are committed; pick one package manager to
+  avoid drift.
