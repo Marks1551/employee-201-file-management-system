@@ -19,7 +19,8 @@ else dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
 
-const DEFAULT_PASSWORD = "lssti123";
+const DEFAULT_PASSWORD = "lssti123"; // HR and faculty accounts
+const ADMIN_PASSWORD = "lsstiadmin"; // default system admin account (ladmin)
 
 const seedEmployees = [
   {
@@ -448,16 +449,19 @@ const seedEmployees = [
   },
 ];
 
+// Seeded accounts: 1 system admin, 1 HR, 5 faculty (each linked to an employee record).
+// `password` is optional; accounts without one use DEFAULT_PASSWORD.
 const seedUsers = [
   {
     id: "user-admin-1",
-    name: "Ricardo Santos",
-    initials: "RS",
-    username: "rsantos",
-    email: "rsantos@lssti.edu.ph",
+    name: "System Administrator",
+    initials: "SA",
+    username: "ladmin",
+    email: "ladmin@lssti.edu.ph",
     role: "admin",
     status: "active",
     employeeId: null,
+    password: ADMIN_PASSWORD,
   },
   {
     id: "user-hr-1",
@@ -496,14 +500,39 @@ const seedUsers = [
     username: "tmendez",
     email: "tmendez@lssti.edu.ph",
     role: "faculty",
-    status: "deactivated",
+    status: "active",
     employeeId: "emp-0071",
+  },
+  {
+    id: "user-faculty-4",
+    name: "Danilo Cruz",
+    initials: "DC",
+    username: "dcruz",
+    email: "dcruz@lssti.edu.ph",
+    role: "faculty",
+    status: "active",
+    employeeId: "emp-0033",
+  },
+  {
+    id: "user-faculty-5",
+    name: "Marife Ong",
+    initials: "MO",
+    username: "mong",
+    email: "mong@lssti.edu.ph",
+    role: "faculty",
+    status: "active",
+    employeeId: "emp-0019",
   },
 ];
 
 const seedAuditLog = [
   { id: "a1", who: "Amelia Reyes", role: "HR Personnel", action: "Uploaded a document for Employee #0142" },
-  { id: "a2", who: "Ricardo Santos", role: "System Administrator", action: "Created account for new Faculty member" },
+  {
+    id: "a2",
+    who: "System Administrator",
+    role: "System Administrator",
+    action: "Created account for new Faculty member",
+  },
   { id: "a3", who: "Jomar Villareal", role: "Faculty", action: "Submitted a Training Certificate" },
   { id: "a4", who: "System", role: "System", action: "Automatic database backup completed" },
 ];
@@ -842,8 +871,8 @@ async function main() {
   }
 
   console.log("Inserting user accounts...");
-  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
   for (const u of seedUsers) {
+    const passwordHash = await bcrypt.hash(u.password ?? DEFAULT_PASSWORD, 10);
     await conn.execute(
       `INSERT INTO users (id, name, initials, username, email, password_hash, role, status, employee_id, last_active)
        VALUES (?,?,?,?,?,?,?,?,?, NOW())`,
@@ -866,7 +895,8 @@ async function main() {
   console.log(
     `Seeded ${seedEmployees.length} employees, ${seedUsers.length} users, ${seedAuditLog.length} audit log entries, ${notifCount} notifications.`,
   );
-  console.log(`Every seeded account's password is: ${DEFAULT_PASSWORD}`);
+  console.log(`Admin login: ladmin / ${ADMIN_PASSWORD}`);
+  console.log(`HR and faculty accounts' password is: ${DEFAULT_PASSWORD}`);
   await conn.end();
   console.log("Done.");
 }

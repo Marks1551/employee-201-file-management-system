@@ -77,13 +77,21 @@ role without a password.
 
 ### Demo accounts
 
-Every seeded account uses the password **`lssti123`**.
+The seed creates **7 accounts**: 1 system admin, 1 HR and 5 faculty (each faculty account is
+linked to an employee record).
 
-| Role    | Username                             |
-| ------- | ------------------------------------ |
-| Admin   | `rsantos`                            |
-| HR      | `areyes`                             |
-| Faculty | `jvillareal`, `cbautista`, `tmendez` |
+| Role    | Username     | Password     |
+| ------- | ------------ | ------------ |
+| Admin   | `ladmin`     | `lsstiadmin` |
+| HR      | `areyes`     | `lssti123`   |
+| Faculty | `jvillareal` | `lssti123`   |
+| Faculty | `cbautista`  | `lssti123`   |
+| Faculty | `tmendez`    | `lssti123`   |
+| Faculty | `dcruz`      | `lssti123`   |
+| Faculty | `mong`       | `lssti123`   |
+
+`ladmin` is the default admin account. Change its password after first sign-in on any
+shared or deployed instance.
 
 ## Environment variables
 
