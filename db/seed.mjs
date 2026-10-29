@@ -451,6 +451,19 @@ const seedEmployees = [
 
 // Seeded accounts: 1 system admin, 1 HR, 5 faculty (each linked to an employee record).
 // `password` is optional; accounts without one use DEFAULT_PASSWORD.
+// Sample avatars (files in public/assets/), keyed by employee id.
+const seedPhotos = {
+  "emp-0142": "/assets/avatar1.png",
+  "emp-0071": "/assets/avatar2.png",
+  "emp-0098": "/assets/avatar3.png",
+  "emp-0033": "/assets/avatar4.png",
+  "emp-0019": "/assets/avatar5.png",
+};
+
+// Sample document scans (files in public/assets/documents/, named <employeeId>-<kind>.png)
+// for every required document marked "uploaded". Fictional, watermarked demo files.
+const seedDocKinds = { d1: "id", d2: "diploma", d3: "nbi", d4: "contract" };
+
 const seedUsers = [
   {
     id: "user-admin-1",
@@ -699,8 +712,8 @@ async function main() {
   console.log("Inserting employees, documents, and training records...");
   for (const emp of seedEmployees) {
     await conn.execute(
-      `INSERT INTO employees (id, employee_number, initials, full_name, display_name, dob, civil_status, nationality, contact, email, address, department, position, employment_type, date_hired, employment_status, contract_start, contract_end, supervisor, pds_details)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO employees (id, employee_number, initials, full_name, display_name, dob, civil_status, nationality, contact, email, address, department, position, employment_type, date_hired, employment_status, contract_start, contract_end, supervisor, photo_url, pds_details)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         emp.id,
         emp.employeeNumber,
@@ -721,18 +734,27 @@ async function main() {
         emp.contractStart || null,
         emp.contractEnd || null,
         emp.supervisor,
+        seedPhotos[emp.id] || null,
         emp.pds ? JSON.stringify(emp.pds) : null,
       ],
     );
     for (const doc of emp.documents) {
       const docId = `${emp.id}-${doc.id}`;
-      await conn.execute("INSERT INTO documents (id, employee_id, name, status, uploaded_at) VALUES (?,?,?,?,?)", [
-        docId,
-        emp.id,
-        doc.name,
-        doc.status,
-        doc.uploaded,
-      ]);
+      const docKind = doc.status === "uploaded" ? seedDocKinds[doc.id] : null;
+      const docFile = docKind ? `${emp.id}-${docKind}.png` : null;
+      await conn.execute(
+        "INSERT INTO documents (id, employee_id, name, status, uploaded_at, file_url, file_name, file_type) VALUES (?,?,?,?,?,?,?,?)",
+        [
+          docId,
+          emp.id,
+          doc.name,
+          doc.status,
+          doc.uploaded,
+          docFile ? `/assets/documents/${docFile}` : null,
+          docFile,
+          docFile ? "image/png" : null,
+        ],
+      );
       if (doc.status === "missing") {
         await conn.execute(
           `INSERT INTO notifications (id, employee_id, document_id, kind, title, detail, status) VALUES (?,?,?,?,?,?,?)`,

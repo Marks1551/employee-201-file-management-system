@@ -160,7 +160,8 @@ export default function Login() {
         {!isProduction && (
           <>
             <p className="text-[0.78rem] text-ink-faint text-center mt-2 mb-0">
-              Default password for every seeded account is{" "}
+              Default admin: <code className="bg-navy-100 px-1.5 py-0.5 rounded text-ink">ladmin</code> /{" "}
+              <code className="bg-navy-100 px-1.5 py-0.5 rounded text-ink">lsstiadmin</code>. Other seeded accounts use{" "}
               <code className="bg-navy-100 px-1.5 py-0.5 rounded text-ink">lssti123</code>.
             </p>
 
