@@ -174,7 +174,7 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
 export async function listNotifications(): Promise<Notification[]> {
   await ensureNotificationSchema();
   const rows = await query<NotificationRow>(
-    "SELECT * FROM notifications WHERE status <> 'dismissed' ORDER BY (status = 'unread') DESC, created_at DESC LIMIT 200",
+    "SELECT * FROM notifications WHERE status <> 'dismissed' ORDER BY created_at DESC LIMIT 200",
   );
   return rows.map(mapNotificationRow);
 }

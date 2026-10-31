@@ -28,6 +28,19 @@ interface Stored {
   dismissed: string[];
 }
 
+/** Turns a "Aug 6, 10:12 AM" style label (no year) into a sortable time. The year is assumed to
+ *  be the current one, or last year if that would put it in the future. Unknown/unparseable → 0. */
+function whenToTime(when: string | null): number {
+  if (!when) return 0;
+  const now = new Date();
+  const withYear = when.replace(/^([A-Za-z]+ \d{1,2}),?/, `$1, ${now.getFullYear()},`);
+  let t = Date.parse(withYear);
+  if (Number.isNaN(t)) t = Date.parse(when);
+  if (Number.isNaN(t)) return 0;
+  if (t > now.getTime() + 24 * 60 * 60 * 1000) t = new Date(t).setFullYear(now.getFullYear() - 1);
+  return t;
+}
+
 const storageKey = (employeeId: string) => `faculty-notifications:${employeeId}`;
 
 function load(employeeId: string): Stored {
@@ -141,10 +154,8 @@ export function useFacultyNotifications(
       all
         .filter((n) => !stored.dismissed.includes(n.id))
         .map((n) => ({ ...n, unread: !stored.read.includes(n.id) }))
-        // unread first, then the ones that need action before the purely informational ones
-        .sort(
-          (a, b) => Number(b.unread) - Number(a.unread) || Number(a.kind === "pending") - Number(b.kind === "pending"),
-        ),
+        // newest first (items without a date go last)
+        .sort((a, b) => whenToTime(b.when) - whenToTime(a.when)),
     [all, stored],
   );
 
