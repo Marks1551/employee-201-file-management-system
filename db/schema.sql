@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS trainings (
   hours          VARCHAR(20),
   ld_type        VARCHAR(60),
   conducted_by   VARCHAR(200),
+  archived_at    VARCHAR(60) NULL,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -104,6 +105,7 @@ CREATE TABLE IF NOT EXISTS education (
   degree          VARCHAR(200),
   year_graduated  VARCHAR(20),
   honors          VARCHAR(150),
+  archived_at     VARCHAR(60) NULL,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -121,6 +123,7 @@ CREATE TABLE IF NOT EXISTS work_experience (
   -- PDS Section V (Work Experience) extras
   status_of_appointment VARCHAR(100),
   govt_service          ENUM('Y','N'),
+  archived_at           VARCHAR(60) NULL,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -175,6 +178,7 @@ CREATE TABLE IF NOT EXISTS performance_reviews (
   rating       VARCHAR(60),
   reviewer     VARCHAR(150),
   remarks      VARCHAR(500),
+  archived_at  VARCHAR(60) NULL,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

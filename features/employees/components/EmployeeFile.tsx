@@ -39,18 +39,18 @@ export default function HREmployeeFile() {
     removeEmployeePhoto,
     addTraining,
     updateTraining,
-    deleteTraining,
+    archiveTraining,
     uploadTrainingCertificate,
     removeTrainingCertificate,
     addEducation,
     updateEducation,
-    deleteEducation,
+    archiveEducation,
     addWorkExperience,
     updateWorkExperience,
-    deleteWorkExperience,
+    archiveWorkExperience,
     addPerformanceReview,
     updatePerformanceReview,
-    deletePerformanceReview,
+    archivePerformanceReview,
     currentUser,
     ready,
   } = useApp();
@@ -617,7 +617,8 @@ export default function HREmployeeFile() {
                 ]}
                 onAdd={(data) => addTraining(employee.id, data)}
                 onUpdate={(recordId, patch) => updateTraining(employee.id, recordId, patch)}
-                onDelete={(recordId) => deleteTraining(employee.id, recordId)}
+                archive
+                onDelete={(recordId) => archiveTraining(employee.id, recordId)}
                 rowActions={(t) =>
                   t.certFileUrl ? (
                     <>
@@ -678,7 +679,8 @@ export default function HREmployeeFile() {
                 ]}
                 onAdd={(data) => addEducation(employee.id, data)}
                 onUpdate={(recordId, patch) => updateEducation(employee.id, recordId, patch)}
-                onDelete={(recordId) => deleteEducation(employee.id, recordId)}
+                archive
+                onDelete={(recordId) => archiveEducation(employee.id, recordId)}
               />
             ),
           },
@@ -737,7 +739,8 @@ export default function HREmployeeFile() {
                 ]}
                 onAdd={(data) => addWorkExperience(employee.id, data)}
                 onUpdate={(recordId, patch) => updateWorkExperience(employee.id, recordId, patch)}
-                onDelete={(recordId) => deleteWorkExperience(employee.id, recordId)}
+                archive
+                onDelete={(recordId) => archiveWorkExperience(employee.id, recordId)}
               />
             ),
           },
@@ -794,7 +797,8 @@ export default function HREmployeeFile() {
                 ]}
                 onAdd={(data) => addPerformanceReview(employee.id, data)}
                 onUpdate={(recordId, patch) => updatePerformanceReview(employee.id, recordId, patch)}
-                onDelete={(recordId) => deletePerformanceReview(employee.id, recordId)}
+                archive
+                onDelete={(recordId) => archivePerformanceReview(employee.id, recordId)}
               />
             ),
           },

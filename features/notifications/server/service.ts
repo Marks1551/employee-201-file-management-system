@@ -93,7 +93,7 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
       employeeId,
     ]),
     query<{ id: string; course: string; provider: string | null }>(
-      "SELECT id, course, provider FROM trainings WHERE employee_id = ? AND cert_status = 'expiring'",
+      "SELECT id, course, provider FROM trainings WHERE employee_id = ? AND cert_status = 'expiring' AND archived_at IS NULL",
       [employeeId],
     ),
     query<{ id: string; document_id: string | null; training_id: string | null; kind: string }>(

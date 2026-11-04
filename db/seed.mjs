@@ -661,6 +661,19 @@ async function main() {
     await conn.query("ALTER TABLE work_experience ADD COLUMN govt_service ENUM('Y','N') AFTER status_of_appointment");
   }
 
+  // Migration: databases created before records could be archived won't have
+  // the archived_at column on the four archivable record tables yet.
+  for (const table of ["trainings", "education", "work_experience", "performance_reviews"]) {
+    const [archCol] = await conn.query(
+      "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = 'archived_at'",
+      [dbName, table],
+    );
+    if (archCol.length === 0) {
+      console.log(`Migrating: adding archived_at column to ${table}...`);
+      await conn.query(`ALTER TABLE ${table} ADD COLUMN archived_at VARCHAR(60) NULL`);
+    }
+  }
+
   // Migration: databases created before the document review/approval feature
   // won't have the pending_* review columns, or the 'pending'/'rejected'
   // status values, on documents yet.

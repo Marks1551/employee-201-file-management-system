@@ -160,13 +160,13 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
     deletePdsReference,
     addEducation,
     updateEducation,
-    deleteEducation,
+    archiveEducation,
     addWorkExperience,
     updateWorkExperience,
-    deleteWorkExperience,
+    archiveWorkExperience,
     addTraining,
     updateTraining,
-    deleteTraining,
+    archiveTraining,
     currentUser,
   } = useApp();
   const showToast = useToast();
@@ -747,7 +747,8 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           ]}
           onAdd={(data) => addEducation(employee.id, data)}
           onUpdate={(recordId, patch) => updateEducation(employee.id, recordId, patch)}
-          onDelete={(recordId) => deleteEducation(employee.id, recordId)}
+          archive
+          onDelete={(recordId) => archiveEducation(employee.id, recordId)}
           readOnly={readOnly}
         />
       </Card>
@@ -836,7 +837,8 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           ]}
           onAdd={(data) => addWorkExperience(employee.id, data)}
           onUpdate={(recordId, patch) => updateWorkExperience(employee.id, recordId, patch)}
-          onDelete={(recordId) => deleteWorkExperience(employee.id, recordId)}
+          archive
+          onDelete={(recordId) => archiveWorkExperience(employee.id, recordId)}
           readOnly={readOnly}
         />
       </Card>
@@ -921,7 +923,8 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           ]}
           onAdd={(data) => addTraining(employee.id, data)}
           onUpdate={(recordId, patch) => updateTraining(employee.id, recordId, patch)}
-          onDelete={(recordId) => deleteTraining(employee.id, recordId)}
+          archive
+          onDelete={(recordId) => archiveTraining(employee.id, recordId)}
           readOnly={readOnly}
         />
       </Card>

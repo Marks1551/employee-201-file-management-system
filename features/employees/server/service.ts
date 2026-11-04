@@ -409,10 +409,10 @@ export async function listEmployees(): Promise<Employee[]> {
   ] = await Promise.all([
     query<EmployeeRow>("SELECT * FROM employees ORDER BY display_name ASC"),
     query<DocumentRow>("SELECT * FROM documents ORDER BY id ASC"),
-    query<TrainingRow>("SELECT * FROM trainings ORDER BY id ASC"),
-    query<EducationRow>("SELECT * FROM education ORDER BY id ASC"),
-    query<WorkExperienceRow>("SELECT * FROM work_experience ORDER BY id ASC"),
-    query<PerformanceRow>("SELECT * FROM performance_reviews ORDER BY id ASC"),
+    query<TrainingRow>("SELECT * FROM trainings WHERE archived_at IS NULL ORDER BY id ASC"),
+    query<EducationRow>("SELECT * FROM education WHERE archived_at IS NULL ORDER BY id ASC"),
+    query<WorkExperienceRow>("SELECT * FROM work_experience WHERE archived_at IS NULL ORDER BY id ASC"),
+    query<PerformanceRow>("SELECT * FROM performance_reviews WHERE archived_at IS NULL ORDER BY id ASC"),
     query<AttendanceRow>("SELECT * FROM attendance_records ORDER BY id ASC"),
     query<CivilServiceEligibilityRow>("SELECT * FROM civil_service_eligibility ORDER BY id ASC"),
     query<VoluntaryWorkRow>("SELECT * FROM voluntary_work ORDER BY id ASC"),
@@ -459,10 +459,16 @@ export async function getEmployee(id: string): Promise<Employee | null> {
   ] = await Promise.all([
     query<EmployeeRow>("SELECT * FROM employees WHERE id = ?", [id]),
     query<DocumentRow>("SELECT * FROM documents WHERE employee_id = ? ORDER BY id ASC", [id]),
-    query<TrainingRow>("SELECT * FROM trainings WHERE employee_id = ? ORDER BY id ASC", [id]),
-    query<EducationRow>("SELECT * FROM education WHERE employee_id = ? ORDER BY id ASC", [id]),
-    query<WorkExperienceRow>("SELECT * FROM work_experience WHERE employee_id = ? ORDER BY id ASC", [id]),
-    query<PerformanceRow>("SELECT * FROM performance_reviews WHERE employee_id = ? ORDER BY id ASC", [id]),
+    query<TrainingRow>("SELECT * FROM trainings WHERE employee_id = ? AND archived_at IS NULL ORDER BY id ASC", [id]),
+    query<EducationRow>("SELECT * FROM education WHERE employee_id = ? AND archived_at IS NULL ORDER BY id ASC", [id]),
+    query<WorkExperienceRow>(
+      "SELECT * FROM work_experience WHERE employee_id = ? AND archived_at IS NULL ORDER BY id ASC",
+      [id],
+    ),
+    query<PerformanceRow>(
+      "SELECT * FROM performance_reviews WHERE employee_id = ? AND archived_at IS NULL ORDER BY id ASC",
+      [id],
+    ),
     query<AttendanceRow>("SELECT * FROM attendance_records WHERE employee_id = ? ORDER BY id ASC", [id]),
     query<CivilServiceEligibilityRow>("SELECT * FROM civil_service_eligibility WHERE employee_id = ? ORDER BY id ASC", [
       id,
@@ -884,8 +890,14 @@ export async function updateTraining(
   await syncNotificationsForEmployee(employeeId);
 }
 
-export async function deleteTraining(employeeId: string, trainingId: string): Promise<void> {
-  await execute("DELETE FROM trainings WHERE id = ? AND employee_id = ?", [trainingId, employeeId]);
+/** Archives (soft-deletes) a training record: it is hidden from the employee's
+ *  file and notifications but kept in the database. */
+export async function archiveTraining(employeeId: string, trainingId: string): Promise<void> {
+  await execute("UPDATE trainings SET archived_at = ? WHERE id = ? AND employee_id = ? AND archived_at IS NULL", [
+    new Date().toISOString(),
+    trainingId,
+    employeeId,
+  ]);
   await syncNotificationsForEmployee(employeeId);
 }
 
@@ -957,7 +969,16 @@ function makeRecordCrud<TInput extends Record<string, unknown>>(
     await execute(`DELETE FROM ${table} WHERE id = ? AND employee_id = ?`, [recordId, employeeId]);
   }
 
-  return { add, update, remove };
+  /** Soft-deletes a record (only for tables that have an archived_at column). */
+  async function archive(employeeId: string, recordId: string): Promise<void> {
+    await execute(`UPDATE ${table} SET archived_at = ? WHERE id = ? AND employee_id = ? AND archived_at IS NULL`, [
+      new Date().toISOString(),
+      recordId,
+      employeeId,
+    ]);
+  }
+
+  return { add, update, remove, archive };
 }
 
 // ---------- educational background ----------
@@ -980,7 +1001,7 @@ const educationCrud = makeRecordCrud<EducationInput>("education", "edu", {
 });
 export const addEducation = educationCrud.add;
 export const updateEducation = educationCrud.update;
-export const deleteEducation = educationCrud.remove;
+export const archiveEducation = educationCrud.archive;
 
 // ---------- work experience ----------
 
@@ -1006,7 +1027,7 @@ const workExperienceCrud = makeRecordCrud<WorkExperienceInput>("work_experience"
 });
 export const addWorkExperience = workExperienceCrud.add;
 export const updateWorkExperience = workExperienceCrud.update;
-export const deleteWorkExperience = workExperienceCrud.remove;
+export const archiveWorkExperience = workExperienceCrud.archive;
 
 // ---------- civil service eligibility ----------
 
@@ -1090,7 +1111,7 @@ const performanceCrud = makeRecordCrud<PerformanceInput>("performance_reviews", 
 });
 export const addPerformanceReview = performanceCrud.add;
 export const updatePerformanceReview = performanceCrud.update;
-export const deletePerformanceReview = performanceCrud.remove;
+export const archivePerformanceReview = performanceCrud.archive;
 
 // ---------- attendance ----------
 

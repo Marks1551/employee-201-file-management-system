@@ -88,10 +88,10 @@ export default function Faculty201File() {
     ready,
     addEducation,
     updateEducation,
-    deleteEducation,
+    archiveEducation,
     addWorkExperience,
     updateWorkExperience,
-    deleteWorkExperience,
+    archiveWorkExperience,
   } = useApp();
   const [viewDoc, setViewDoc] = useState<DocumentRecord | null>(null);
   if (!ready) return null;
@@ -267,7 +267,8 @@ export default function Faculty201File() {
                 ]}
                 onAdd={(data) => addEducation(currentEmployee.id, data)}
                 onUpdate={(recordId, patch) => updateEducation(currentEmployee.id, recordId, patch)}
-                onDelete={(recordId) => deleteEducation(currentEmployee.id, recordId)}
+                archive
+                onDelete={(recordId) => archiveEducation(currentEmployee.id, recordId)}
               />
             ),
           },
@@ -346,7 +347,8 @@ export default function Faculty201File() {
                 ]}
                 onAdd={(data) => addWorkExperience(currentEmployee.id, data)}
                 onUpdate={(recordId, patch) => updateWorkExperience(currentEmployee.id, recordId, patch)}
-                onDelete={(recordId) => deleteWorkExperience(currentEmployee.id, recordId)}
+                archive
+                onDelete={(recordId) => archiveWorkExperience(currentEmployee.id, recordId)}
               />
             ),
           },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, Field, inputCls } from "@/shared/components/ui";
 import { TableWrap, Th, Td } from "@/shared/components/Table";
 import Pagination from "@/shared/components/Pagination";
@@ -51,6 +51,8 @@ interface RecordManagerProps<T extends RecordItem> {
   onAdd: (data: Record<string, unknown>) => Promise<ActionResult>;
   onUpdate: (id: string, data: Record<string, unknown>) => Promise<ActionResult>;
   onDelete: (id: string) => Promise<ActionResult>;
+  /** When true, the remove action reads "Archive" (record is hidden, not erased). */
+  archive?: boolean;
   rowActions?: (item: T) => ReactNode;
   readOnly?: boolean;
 }
@@ -76,6 +78,7 @@ export default function RecordManager<T extends RecordItem>({
   onAdd,
   onUpdate,
   onDelete,
+  archive = false,
   rowActions,
   readOnly = false,
 }: RecordManagerProps<T>) {
@@ -125,6 +128,8 @@ export default function RecordManager<T extends RecordItem>({
     closeModal();
   }
 
+  const verb = archive ? "Archive" : "Delete";
+
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -134,7 +139,7 @@ export default function RecordManager<T extends RecordItem>({
       showToast(result.error);
       return;
     }
-    showToast(`${typeLabel[0].toUpperCase()}${typeLabel.slice(1)} removed.`);
+    showToast(`${typeLabel[0].toUpperCase()}${typeLabel.slice(1)} ${archive ? "archived" : "removed"}.`);
     setDeleteTarget(null);
   }
 
@@ -180,8 +185,8 @@ export default function RecordManager<T extends RecordItem>({
                         Edit
                       </Button>
                       <Button variant="danger" sm onClick={() => setDeleteTarget(item)}>
-                        <Trash2 size={14} />
-                        Delete
+                        {archive ? <Archive size={14} /> : <Trash2 size={14} />}
+                        {verb}
                       </Button>
                     </div>
                   </Td>
@@ -257,18 +262,22 @@ export default function RecordManager<T extends RecordItem>({
             </form>
           </Modal>
 
-          <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={`Delete ${typeLabel}`}>
+          <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={`${verb} ${typeLabel}`}>
             <p className="text-ink mb-1">
-              Remove <strong>{deleteTarget ? itemLabel(deleteTarget) : ""}</strong> from {employeeName}&apos;s{" "}
-              {typeLabel} records?
+              {archive ? "Archive" : "Remove"} <strong>{deleteTarget ? itemLabel(deleteTarget) : ""}</strong> from{" "}
+              {employeeName}&apos;s {typeLabel} records?
             </p>
-            <p className="text-[0.86rem] text-ink-muted mb-5">This cannot be undone.</p>
+            <p className="text-[0.86rem] text-ink-muted mb-5">
+              {archive
+                ? "It will be hidden from this employee's file but kept in the system records."
+                : "This cannot be undone."}
+            </p>
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)} disabled={deleting}>
                 Cancel
               </Button>
               <Button variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
-                {deleting ? "Deleting…" : "Delete"}
+                {deleting ? (archive ? "Archiving…" : "Deleting…") : verb}
               </Button>
             </div>
           </Modal>

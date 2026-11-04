@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireHrOrOwnFaculty } from "@/shared/server/api-helpers";
 import { notifyPdsUpdatedBy } from "@/features/notifications/server/service";
-import { getEmployee, updateWorkExperience, deleteWorkExperience } from "@/features/employees/server/service";
+import { getEmployee, updateWorkExperience, archiveWorkExperience } from "@/features/employees/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel } from "@/shared/lib/roles";
 
@@ -34,11 +34,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const employee = await getEmployee(id);
   if (!employee) return NextResponse.json({ error: "Employee not found." }, { status: 404 });
 
-  await deleteWorkExperience(id, workExperienceId);
+  await archiveWorkExperience(id, workExperienceId);
   await addAuditLog(
     user.name,
     roleLabel(user.role),
-    `Removed a work experience record for ${employee.displayName} (#${employee.employeeNumber})`,
+    `Archived a work experience record for ${employee.displayName} (#${employee.employeeNumber})`,
   );
   await notifyPdsUpdatedBy(user, id, "Work experience");
 

@@ -126,21 +126,21 @@ export interface AppContextValue {
 
   addTraining: (employeeId: string, data: Record<string, unknown>) => Promise<ActionResult>;
   updateTraining: (employeeId: string, trainingId: string, patch: Record<string, unknown>) => Promise<ActionResult>;
-  deleteTraining: (employeeId: string, trainingId: string) => Promise<ActionResult>;
+  archiveTraining: (employeeId: string, trainingId: string) => Promise<ActionResult>;
   uploadTrainingCertificate: (employeeId: string, trainingId: string, certFile: File) => Promise<ActionResult>;
   removeTrainingCertificate: (employeeId: string, trainingId: string) => Promise<ActionResult>;
 
   addEducation: RecordActions<Record<string, unknown>>["add"];
   updateEducation: RecordActions<Record<string, unknown>>["update"];
-  deleteEducation: RecordActions<Record<string, unknown>>["remove"];
+  archiveEducation: RecordActions<Record<string, unknown>>["remove"];
 
   addWorkExperience: RecordActions<Record<string, unknown>>["add"];
   updateWorkExperience: RecordActions<Record<string, unknown>>["update"];
-  deleteWorkExperience: RecordActions<Record<string, unknown>>["remove"];
+  archiveWorkExperience: RecordActions<Record<string, unknown>>["remove"];
 
   addPerformanceReview: RecordActions<Record<string, unknown>>["add"];
   updatePerformanceReview: RecordActions<Record<string, unknown>>["update"];
-  deletePerformanceReview: RecordActions<Record<string, unknown>>["remove"];
+  archivePerformanceReview: RecordActions<Record<string, unknown>>["remove"];
 
   addAttendanceRecord: RecordActions<Record<string, unknown>>["add"];
   updateAttendanceRecord: RecordActions<Record<string, unknown>>["update"];
@@ -743,7 +743,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const deleteTraining = useCallback(async (employeeId: string, trainingId: string): Promise<ActionResult> => {
+  const archiveTraining = useCallback(async (employeeId: string, trainingId: string): Promise<ActionResult> => {
     try {
       const { employee } = await api<{ employee: Employee }>(`/api/employees/${employeeId}/trainings/${trainingId}`, {
         method: "DELETE",
@@ -840,17 +840,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const educationActions = useMemo(() => makeRecordActions("education"), []);
   const addEducation = educationActions.add;
   const updateEducation = educationActions.update;
-  const deleteEducation = educationActions.remove;
+  const archiveEducation = educationActions.remove;
 
   const workExperienceActions = useMemo(() => makeRecordActions("work-experience"), []);
   const addWorkExperience = workExperienceActions.add;
   const updateWorkExperience = workExperienceActions.update;
-  const deleteWorkExperience = workExperienceActions.remove;
+  const archiveWorkExperience = workExperienceActions.remove;
 
   const performanceActions = useMemo(() => makeRecordActions("performance"), []);
   const addPerformanceReview = performanceActions.add;
   const updatePerformanceReview = performanceActions.update;
-  const deletePerformanceReview = performanceActions.remove;
+  const archivePerformanceReview = performanceActions.remove;
 
   const attendanceActions = useMemo(() => makeRecordActions("attendance"), []);
   const addAttendanceRecord = attendanceActions.add;
@@ -999,18 +999,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeDocumentRequirement,
     addTraining,
     updateTraining,
-    deleteTraining,
+    archiveTraining,
     uploadTrainingCertificate,
     removeTrainingCertificate,
     addEducation,
     updateEducation,
-    deleteEducation,
+    archiveEducation,
     addWorkExperience,
     updateWorkExperience,
-    deleteWorkExperience,
+    archiveWorkExperience,
     addPerformanceReview,
     updatePerformanceReview,
-    deletePerformanceReview,
+    archivePerformanceReview,
     addAttendanceRecord,
     updateAttendanceRecord,
     deleteAttendanceRecord,
