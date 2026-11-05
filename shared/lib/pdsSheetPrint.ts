@@ -39,7 +39,7 @@ function freezeControls(source: HTMLElement, clone: HTMLElement): void {
 }
 
 const PRINT_CSS = `
-  @page { size: A4 portrait; margin: 6mm; }
+  @page { size: 8.5in 13in; margin: 6mm; } /* Long bond paper (Legal) */
   html, body { margin: 0; background: #fff; }
   body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   [data-print-hide] { display: none !important; }
@@ -47,7 +47,8 @@ const PRINT_CSS = `
     overflow: visible !important; border: 0 !important; border-radius: 0 !important;
     background: #fff !important; padding: 0 !important; margin: 0 !important;
     break-after: page; page-break-after: always;
-    width: 1040px !important; zoom: 0.7; /* 1040px-wide form → fits A4 printable width */
+    width: 1040px !important; zoom: 0.7; /* fallback; FIT_SCRIPT refines this per page */
+    overflow: hidden !important;
   }
   .pds-page:last-child { break-after: auto; page-break-after: auto; }
   .pds-page-inner { min-width: 0 !important; max-width: none !important; width: 100% !important; }
@@ -55,6 +56,31 @@ const PRINT_CSS = `
   .pds-page * { box-shadow: none !important; }
   .pds-page img { opacity: 1 !important; }
   .pds-page .animate-pulse { display: none !important; }
+`;
+
+// The form has exactly 4 sheets (CS Form 212, Page 1-4 of 4). To print back-to-back on 2 sheets of
+// paper, each sheet must land on exactly ONE long-bond page. The sheets differ in height, so a single fixed
+// zoom either overflows onto an extra page or wastes space. This runs inside the print frame and
+// scales every sheet to the largest zoom that fits both the printable width and height.
+const FIT_SCRIPT = `
+(function () {
+  var PX = 96 / 25.4;
+  var W = (215.9 - 12) * PX;      // printable width  (Long bond 8.5in minus 6mm margins)
+  var H = (330.2 - 12) * PX - 6;  // printable height (13in), minus a small safety gap
+  function fit() {
+    var pages = document.querySelectorAll('.pds-page');
+    for (var i = 0; i < pages.length; i++) {
+      var el = pages[i];
+      el.style.zoom = '1';
+      var h = el.getBoundingClientRect().height || el.scrollHeight;
+      var z = Math.min(W / 1040, H / h);
+      el.style.zoom = String(Math.floor(z * 1000) / 1000);
+    }
+  }
+  fit();
+  window.addEventListener('load', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+})();
 `;
 
 /**
@@ -83,7 +109,7 @@ export function printPdsSheets(root?: HTMLElement | null): boolean {
 ${head}
 <style>${PRINT_CSS}</style>
 </head>
-<body>${clone.outerHTML}</body>
+<body>${clone.outerHTML}<script>${FIT_SCRIPT}</script></body>
 </html>`;
 
   printHtmlDocument(html);
