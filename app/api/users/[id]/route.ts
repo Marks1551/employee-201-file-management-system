@@ -7,6 +7,7 @@ import {
   countAdmins,
   findEmailConflict,
   findUsernameConflict,
+  checkRoleCapacity,
 } from "@/features/users/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel } from "@/shared/lib/roles";
@@ -21,6 +22,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const patch = await request.json();
   const existing = await getUserPublic(id);
   if (!existing) return NextResponse.json({ error: "Account not found." }, { status: 404 });
+
+  // Role limits: 1 HR Personnel, 3 System Administrators.
+  if (typeof patch.role === "string" && patch.role !== existing.role) {
+    const full = await checkRoleCapacity(patch.role, id);
+    if (full) return NextResponse.json({ error: full }, { status: 400 });
+  }
+  // Reactivating an account must not push its role over the limit either.
+  if (patch.status === "active" && existing.status !== "active") {
+    const full = await checkRoleCapacity(typeof patch.role === "string" ? patch.role : existing.role, id);
+    if (full) return NextResponse.json({ error: full }, { status: 400 });
+  }
 
   // Email and username must be unique across accounts — say so clearly instead of failing silently.
   if (typeof patch.email === "string") {

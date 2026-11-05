@@ -14,6 +14,28 @@ export function roleLabel(role: string): string {
   }
 }
 
+/** Maximum number of accounts allowed per role. Roles not listed here are unlimited. */
+export const ROLE_LIMITS: Partial<Record<Role, number>> = {
+  admin: 3,
+  hr: 1,
+};
+
+/** Error shown when a role has no free slots left. */
+export function roleLimitMessage(role: string): string {
+  const limit = ROLE_LIMITS[role as Role];
+  if (limit === undefined) return "";
+  return `Only ${limit} ${roleLabel(role)} account${limit === 1 ? "" : "s"} allowed. The limit has been reached.`;
+}
+
+/** True when assigning `role` to someone would exceed that role's limit.
+ *  `excludeUserId` is the account being changed, so it never blocks its own current role. */
+export function isRoleFull(users: { id: string; role: string }[], role: string, excludeUserId?: string): boolean {
+  const limit = ROLE_LIMITS[role as Role];
+  if (limit === undefined) return false;
+  const count = users.filter((u) => u.role === role && u.id !== excludeUserId).length;
+  return count >= limit;
+}
+
 export function roleHome(role: Role | string): string {
   switch (role) {
     case "admin":

@@ -5,6 +5,7 @@ import { fmt, initials } from "@/shared/server/format";
 import { createSetupToken } from "@/features/auth/server/setup-tokens";
 import { appUrl, sendAccountSetupEmail, sendPasswordResetEmail } from "@/features/mailer/server/service";
 import { findEmployeeByNumber } from "@/features/employees/server/service";
+import { ROLE_LIMITS, roleLimitMessage } from "@/shared/lib/roles";
 import type { User, UserInput, UserRow, Patch, Role } from "@/shared/types";
 
 const DEFAULT_PASSWORD = "lssti123";
@@ -156,6 +157,18 @@ export async function deleteUser(id: string): Promise<void> {
 export async function countAdmins(): Promise<number> {
   const rows = await query<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'");
   return Number(rows[0]?.n || 0);
+}
+
+/** Returns an error message if giving `role` to someone (other than `excludeUserId`) would exceed
+ *  that role's limit (see ROLE_LIMITS), otherwise null. */
+export async function checkRoleCapacity(role: string, excludeUserId?: string): Promise<string | null> {
+  const limit = ROLE_LIMITS[role as Role];
+  if (limit === undefined) return null;
+  const rows = await query<{ n: number }>("SELECT COUNT(*) AS n FROM users WHERE role = ? AND id <> ?", [
+    role,
+    excludeUserId || "",
+  ]);
+  return Number(rows[0]?.n || 0) >= limit ? roleLimitMessage(role) : null;
 }
 
 export async function touchLastActive(id: string): Promise<void> {
