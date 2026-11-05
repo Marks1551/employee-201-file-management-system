@@ -30,11 +30,11 @@ export function fmtDMY(v: string | null | undefined): string {
 /** One printed page of the form. */
 export function Sheet({ page, total = 4, children }: { page: number; total?: number; children: ReactNode }) {
   return (
-    <div className="overflow-x-auto scrollbar-thin rounded-xl border border-border-strong bg-neutral-200 p-2 md:p-4">
-      <div className="mx-auto min-w-[880px] max-w-[1040px] border-2 border-neutral-800 bg-white font-[Arial,Helvetica,sans-serif] text-[12px] text-black">
+    <div className="pds-page overflow-x-auto scrollbar-thin rounded-xl border border-border-strong bg-neutral-200 p-2 md:p-4">
+      <div className="pds-page-inner mx-auto min-w-[880px] max-w-[1040px] border-2 border-neutral-800 bg-white font-[Arial,Helvetica,sans-serif] text-[12px] text-black">
         {children}
       </div>
-      <p className="mx-auto m-0 mt-1.5 max-w-[1040px] text-right text-[10px] italic text-neutral-600">
+      <p className="pds-page-foot mx-auto m-0 mt-1.5 max-w-[1040px] text-right text-[10px] italic text-neutral-600">
         CS FORM 212 (Revised 2026), Page {page} of {total}
       </p>
     </div>

@@ -57,6 +57,8 @@ export default function SubmitDocument() {
   }, [docType, options]);
 
   const needsExpiry = documentNeedsExpiry(docType);
+  // Multi-page documents must go in as ONE file, so ask for a single merged PDF.
+  const isMultiPage = /transcript|\bTOR\b/i.test(docType);
 
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="Submit a Document" />;
@@ -147,6 +149,12 @@ export default function SubmitDocument() {
                 onChange={handleFileChange}
               />
             </Field>
+            {isMultiPage && (
+              <p className="mt-0 mb-4 p-3 rounded-xl bg-navy-100 text-navy text-[0.84rem]">
+                <strong>Note:</strong> This document has several pages. Please merge all pages (e.g. all 4 pages of your
+                TOR) into <strong>one PDF file</strong> before uploading. Only one file can be submitted per document.
+              </p>
+            )}
             {needsExpiry && (
               <Field
                 label="Expiry date"

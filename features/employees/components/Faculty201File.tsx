@@ -9,7 +9,7 @@ import { Card, Tag, Avatar, Button } from "@/shared/components/ui";
 import { TableWrap, Th, Td } from "@/shared/components/Table";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
-import { exportPds } from "@/shared/lib/pds";
+import { printPdsSheets } from "@/shared/lib/pdsSheetPrint";
 import { exportPdsWorkbook } from "@/shared/lib/pdsWorkbook";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import Modal from "@/shared/components/Modal";
@@ -143,7 +143,12 @@ export default function Faculty201File() {
           <FileDown size={18} />
           Export PDS (.xlsx)
         </Button>
-        <Button variant="secondary" onClick={() => exportPds(currentEmployee)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            if (!printPdsSheets()) showToast("Could not open the Personal Data Sheet for printing. Please try again.");
+          }}
+        >
           <Printer size={18} />
           Print PDS
         </Button>
@@ -462,6 +467,12 @@ export default function Faculty201File() {
           },
         ]}
       />
+
+      {/* Off-screen copy of the PDS sheets so "Print PDS" works even when the PDS tab isn't open. When the tab
+          is open its own (earlier) copy is the one printed, so unsaved edits are included. */}
+      <div aria-hidden="true" className="pointer-events-none absolute left-[-99999px] top-0 w-[1100px]">
+        <PdsDetailsForm employee={currentEmployee} readOnly canArchiveTraining={false} />
+      </div>
 
       <Modal open={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.name || ""} wide>
         {(() => {

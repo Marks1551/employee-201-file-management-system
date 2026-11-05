@@ -246,12 +246,17 @@ export default function RecordManager<T extends RecordItem>({
   if (formStyle) {
     const blanks = Math.max(0, (formStyle.minRows ?? 0) - items.length);
     const actionTh = readOnly ? null : (
-      <th rowSpan={formStyle.headRows ?? 1} className={`border ${LINE} ${LABEL_BG} w-[68px]`} aria-label="Actions" />
+      <th
+        data-print-hide
+        rowSpan={formStyle.headRows ?? 1}
+        className={`border ${LINE} ${LABEL_BG} w-[68px]`}
+        aria-label="Actions"
+      />
     );
     return (
       <div>
         {!readOnly && (
-          <div className={`flex justify-end border-b ${LINE} bg-amber-50 px-2 py-1`}>
+          <div data-print-hide className={`flex justify-end border-b ${LINE} bg-amber-50 px-2 py-1`}>
             <button
               type="button"
               onClick={openAdd}
@@ -267,7 +272,7 @@ export default function RecordManager<T extends RecordItem>({
             {formStyle.widths.map((w, i) => (
               <col key={i} style={{ width: `${w}%` }} />
             ))}
-            {!readOnly && <col style={{ width: 68 }} />}
+            {!readOnly && <col data-print-hide style={{ width: 68 }} />}
           </colgroup>
           <thead>{formStyle.head(actionTh)}</thead>
           <tbody>
@@ -279,7 +284,7 @@ export default function RecordManager<T extends RecordItem>({
                   </td>
                 ))}
                 {!readOnly && (
-                  <td className={`${tdCls} text-center`}>
+                  <td data-print-hide className={`${tdCls} text-center`}>
                     <div className="flex items-center justify-center gap-1">
                       {rowActions && rowActions(item)}
                       <button
@@ -312,7 +317,7 @@ export default function RecordManager<T extends RecordItem>({
                 {cols.map((c) => (
                   <td key={c.key} className={`${tdCls} h-[26px]`} />
                 ))}
-                {!readOnly && <td className={tdCls} />}
+                {!readOnly && <td data-print-hide className={tdCls} />}
               </tr>
             ))}
           </tbody>
