@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Employee, Notification } from "@/shared/types";
+import { documentExpiry, expiryPhrase } from "@/shared/lib/documentExpiry";
 
 export type FacultyNotificationKind = "missing" | "rejected" | "pending" | "expiring" | "announcement";
 
@@ -113,6 +114,19 @@ export function useFacultyNotifications(
           when: d.reviewedAt,
           href: "/faculty/submit",
         });
+      } else if (d.status === "uploaded") {
+        // PRC / NBI Clearance that has expired or is about to
+        const expiry = documentExpiry(d);
+        if (expiry && (expiry.expired || expiry.expiringSoon)) {
+          list.push({
+            id: `expiring-doc:${d.id}:${d.expiresOn}`,
+            kind: "expiring",
+            title: expiry.expired ? `${d.name} has expired` : `${d.name} expiring soon`,
+            detail: `${expiryPhrase(expiry)} (${d.expiresOn}). Submit a renewed copy under Submit a Document.`,
+            when: docTime.get(d.id) || null,
+            href: "/faculty/submit",
+          });
+        }
       } else if (d.status === "pending") {
         list.push({
           id: `pending:${d.id}:${d.submitted || ""}`,

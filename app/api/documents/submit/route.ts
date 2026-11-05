@@ -4,6 +4,7 @@ import { requireUser, saveDocumentFile, isEmployeeInactive, inactiveRecordRespon
 import { submitEmployeeDocument } from "@/features/employees/server/service";
 import { addAuditLog } from "@/features/audit-log/server/service";
 import { roleLabel } from "@/shared/lib/roles";
+import { documentNeedsExpiry, parseExpiryInput } from "@/shared/lib/documentExpiry";
 import type { StoredFile } from "@/shared/types";
 
 export async function POST(request: NextRequest) {
@@ -29,6 +30,13 @@ export async function POST(request: NextRequest) {
 
   if (user.role === "faculty" && (await isEmployeeInactive(employeeId))) return inactiveRecordResponse();
 
+  // PRC and NBI Clearance must come with the date the document expires.
+  const expiry = parseExpiryInput(formData.get("expiresOn"));
+  if (!expiry.ok) return NextResponse.json({ error: "Enter a valid expiry date." }, { status: 400 });
+  if (documentNeedsExpiry(docTypeName) && !expiry.value) {
+    return NextResponse.json({ error: `Please enter the expiry date of your ${docTypeName}.` }, { status: 400 });
+  }
+
   let fileInfo: StoredFile | undefined;
   if (file && typeof file !== "string") {
     // The document row may not exist yet, so save under a fresh id rather than
@@ -38,7 +46,12 @@ export async function POST(request: NextRequest) {
     fileInfo = saved;
   }
 
-  await submitEmployeeDocument(employeeId, docTypeName, fileInfo);
+  await submitEmployeeDocument(
+    employeeId,
+    docTypeName,
+    fileInfo,
+    documentNeedsExpiry(docTypeName) ? expiry.value : null,
+  );
   await addAuditLog(user.name, roleLabel(user.role), `Submitted "${docTypeName}" for review`);
 
   return NextResponse.json({ ok: true });

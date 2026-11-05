@@ -8,6 +8,7 @@
 import type { Employee } from "@/shared/types";
 import { certStatusText } from "@/shared/lib/trainingExpiry";
 import { printHtmlDocument } from "./printDocument";
+import { expiryText } from "./documentExpiry";
 
 function esc(value: string | number | null | undefined): string {
   const str = value === null || value === undefined || value === "" ? "" : String(value);
@@ -183,8 +184,13 @@ function buildHtml(employee: Employee): string {
 
   <div class="section-h">Documents on File</div>
   ${table(
-    ["Document", "Status", "Uploaded"],
-    employee.documents.map((d) => [esc(d.name), d.status === "uploaded" ? "Uploaded" : "Missing", esc(d.uploaded)]),
+    ["Document", "Status", "Uploaded", "Expires"],
+    employee.documents.map((d) => [
+      esc(d.name),
+      d.status === "uploaded" ? "Uploaded" : "Missing",
+      esc(d.uploaded),
+      esc(expiryText(d)),
+    ]),
     "No documents on file.",
   )}
 

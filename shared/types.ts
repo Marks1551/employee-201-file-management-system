@@ -7,7 +7,12 @@ export type UserStatus = "active" | "deactivated";
 export type EmployeeStatus = "active" | "inactive";
 export type DocumentStatus = "uploaded" | "missing" | "pending" | "rejected";
 export type CertStatus = "on-file" | "expiring";
-export type NotificationKind = "missing_document" | "expiring_training" | "pending_document" | "pds_updated";
+export type NotificationKind =
+  | "missing_document"
+  | "expiring_training"
+  | "expiring_document"
+  | "pending_document"
+  | "pds_updated";
 export type NotificationStatus = "unread" | "read";
 export type EmploymentStatusValue = "Regular" | "Contractual";
 
@@ -39,6 +44,10 @@ export interface DocumentRecord {
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNote: string | null;
+  /** Expiry date of the approved file (PRC / NBI Clearance only), e.g. "March 11, 2027". */
+  expiresOn: string | null;
+  /** Expiry date entered with a faculty submission, applied once HR approves it. */
+  pendingExpiresOn: string | null;
 }
 
 export interface TrainingRecord {
@@ -494,6 +503,8 @@ export interface DocumentRow {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  expires_on: string | null;
+  pending_expires_on: string | null;
 }
 
 export interface TrainingRow {

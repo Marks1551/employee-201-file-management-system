@@ -13,6 +13,8 @@ import RecordManager from "@/features/employees/components/RecordManager";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
 import CertificateStatus from "@/features/employees/components/CertificateStatus";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
+import { DocumentExpiryCell, ExpiryDateModal } from "@/features/employees/components/DocumentExpiry";
+import { documentNeedsExpiry } from "@/shared/lib/documentExpiry";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES } from "@/shared/lib/roles";
@@ -34,6 +36,7 @@ export default function HREmployeeFile() {
     setEmployeeStatus,
     deleteEmployee,
     uploadDocument,
+    updateDocumentExpiry,
     removeDocument,
     approveDocument,
     rejectDocument,
@@ -72,6 +75,11 @@ export default function HREmployeeFile() {
   const docInputRef = useRef<HTMLInputElement>(null);
   const pendingDocId = useRef<string | null>(null);
   const [docBusyId, setDocBusyId] = useState<string | null>(null);
+  // PRC / NBI Clearance: the chosen file waits here while HR enters its expiry date.
+  const [expiryUpload, setExpiryUpload] = useState<{ docId: string; file: File } | null>(null);
+  // Correcting the expiry date of an already-approved document.
+  const [expiryEditDoc, setExpiryEditDoc] = useState<DocumentRecord | null>(null);
+  const [expiryBusy, setExpiryBusy] = useState(false);
   const [rejectDocId, setRejectDocId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [rejectBusy, setRejectBusy] = useState(false);
@@ -143,14 +151,46 @@ export default function HREmployeeFile() {
     const docId = pendingDocId.current;
     pendingDocId.current = null;
     if (!file || !docId || !employee) return;
+    // PRC and NBI Clearance need an expiry date first.
+    const doc = employee.documents.find((d) => d.id === docId);
+    if (doc && documentNeedsExpiry(doc.name)) {
+      setExpiryUpload({ docId, file });
+      return;
+    }
+    await finishUpload(docId, file);
+  }
+
+  async function finishUpload(docId: string, file: File, expiresOn?: string) {
+    if (!employee) return;
     setDocBusyId(docId);
-    const result = await uploadDocument(employee.id, docId, file);
+    const result = await uploadDocument(employee.id, docId, file, expiresOn);
     setDocBusyId(null);
     if (!result.ok) {
       showToast(result.error);
       return;
     }
     showToast("Document uploaded.");
+  }
+
+  async function handleConfirmExpiryUpload(isoDate: string) {
+    if (!expiryUpload) return;
+    setExpiryBusy(true);
+    await finishUpload(expiryUpload.docId, expiryUpload.file, isoDate);
+    setExpiryBusy(false);
+    setExpiryUpload(null);
+  }
+
+  async function handleConfirmExpiryEdit(isoDate: string) {
+    if (!employee || !expiryEditDoc) return;
+    setExpiryBusy(true);
+    const result = await updateDocumentExpiry(employee.id, expiryEditDoc.id, isoDate);
+    setExpiryBusy(false);
+    if (!result.ok) {
+      showToast(result.error);
+      return;
+    }
+    showToast("Expiry date updated.");
+    setExpiryEditDoc(null);
   }
 
   async function handleRemoveDoc(docId: string) {
@@ -469,12 +509,13 @@ export default function HREmployeeFile() {
             label: "Documents",
             content: (
               <TableWrap>
-                <table className="w-full border-collapse min-w-[560px]">
+                <table className="w-full border-collapse min-w-[680px]">
                   <thead>
                     <tr>
                       <Th>Document</Th>
                       <Th>Status</Th>
                       <Th>Uploaded</Th>
+                      <Th>Expires</Th>
                       <Th>Actions</Th>
                     </tr>
                   </thead>
@@ -489,6 +530,9 @@ export default function HREmployeeFile() {
                           {doc.status === "missing" && <Tag kind="danger">Missing</Tag>}
                         </Td>
                         <Td>{doc.uploaded || "—"}</Td>
+                        <Td>
+                          <DocumentExpiryCell doc={doc} />
+                        </Td>
                         <Td>
                           {doc.status === "pending" ? (
                             <div className="flex gap-2">
@@ -519,6 +563,12 @@ export default function HREmployeeFile() {
                                 <Eye size={16} />
                                 View
                               </Button>
+                              {documentNeedsExpiry(doc.name) && (
+                                <Button variant="secondary" sm onClick={() => setExpiryEditDoc(doc)}>
+                                  <Pencil size={14} />
+                                  {doc.expiresOn ? "Edit expiry" : "Set expiry"}
+                                </Button>
+                              )}
                               <Button
                                 variant="danger"
                                 sm
@@ -1160,6 +1210,27 @@ export default function HREmployeeFile() {
           </div>
         )}
       </Modal>
+
+      <ExpiryDateModal
+        open={!!expiryUpload}
+        title="Expiry date"
+        description={`Enter the expiry date of this ${employee.documents.find((d) => d.id === expiryUpload?.docId)?.name || "document"} before it is uploaded. HR will be reminded when it is about to expire.`}
+        confirmLabel="Upload Document"
+        busy={expiryBusy}
+        onClose={() => setExpiryUpload(null)}
+        onConfirm={handleConfirmExpiryUpload}
+      />
+
+      <ExpiryDateModal
+        open={!!expiryEditDoc}
+        title={expiryEditDoc ? `${expiryEditDoc.name} expiry date` : "Expiry date"}
+        description="Set the date this document expires — for example after the employee renews it."
+        initialDate={expiryEditDoc?.expiresOn}
+        confirmLabel="Save Date"
+        busy={expiryBusy}
+        onClose={() => setExpiryEditDoc(null)}
+        onConfirm={handleConfirmExpiryEdit}
+      />
 
       <Modal open={!!rejectDocId} onClose={closeRejectModal} title="Reject document">
         <form onSubmit={handleConfirmReject}>

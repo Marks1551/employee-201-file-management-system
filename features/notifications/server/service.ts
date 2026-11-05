@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { query, execute } from "@/shared/server/db";
 import { fmt } from "@/shared/server/format";
+import { ensureDocumentExpiryColumns } from "@/shared/server/documentExpiryColumns";
+import { documentExpiry, expiryPhrase } from "@/shared/lib/documentExpiry";
 import type { Notification, NotificationRow } from "@/shared/types";
 
 function mapNotificationRow(row: NotificationRow): Notification {
@@ -43,7 +45,8 @@ function ensureDismissedStatus(): Promise<void> {
   return dismissedStatusReady;
 }
 
-/** The `pds_updated` kind (faculty edited their PDS) is added to older databases once,
+/** The `pds_updated` (faculty edited their PDS) and `expiring_document` (PRC / NBI nearing
+ *  expiry) kinds are added to older databases once,
  *  automatically, the first time notifications are touched. */
 let pdsKindReady: Promise<void> | null = null;
 function ensurePdsKind(): Promise<void> {
@@ -53,9 +56,10 @@ function ensurePdsKind(): Promise<void> {
         const rows = await query<{ COLUMN_TYPE: string }>(
           "SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'kind'",
         );
-        if (rows[0] && !String(rows[0].COLUMN_TYPE).includes("pds_updated")) {
+        // `expiring_document` is the newest kind, so a database that has it has them all.
+        if (rows[0] && !String(rows[0].COLUMN_TYPE).includes("expiring_document")) {
           await execute(
-            "ALTER TABLE notifications MODIFY COLUMN kind ENUM('missing_document','expiring_training','pending_document','pds_updated') NOT NULL",
+            "ALTER TABLE notifications MODIFY COLUMN kind ENUM('missing_document','expiring_training','expiring_document','pending_document','pds_updated') NOT NULL",
           );
         }
       } catch (err) {
@@ -70,6 +74,7 @@ function ensurePdsKind(): Promise<void> {
 async function ensureNotificationSchema(): Promise<void> {
   await ensureDismissedStatus();
   await ensurePdsKind();
+  await ensureDocumentExpiryColumns();
 }
 
 /**
@@ -81,7 +86,7 @@ async function ensureNotificationSchema(): Promise<void> {
  */
 export async function syncNotificationsForEmployee(employeeId: string): Promise<void> {
   await ensureNotificationSchema();
-  const [employeeRows, missingDocs, pendingDocs, expiringTrainings, existing] = await Promise.all([
+  const [employeeRows, missingDocs, pendingDocs, expiringTrainings, uploadedDocs, existing] = await Promise.all([
     query<{ display_name: string; employee_number: string }>(
       "SELECT display_name, employee_number FROM employees WHERE id = ?",
       [employeeId],
@@ -96,6 +101,10 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
       "SELECT * FROM trainings WHERE employee_id = ? AND cert_status = 'expiring' AND archived_at IS NULL",
       [employeeId],
     ),
+    query<{ id: string; name: string; status: string; expires_on: string | null }>(
+      "SELECT id, name, status, expires_on FROM documents WHERE employee_id = ? AND status = 'uploaded' AND expires_on IS NOT NULL",
+      [employeeId],
+    ),
     query<{ id: string; document_id: string | null; training_id: string | null; kind: string }>(
       "SELECT id, document_id, training_id, kind FROM notifications WHERE employee_id = ?",
       [employeeId],
@@ -107,6 +116,14 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
   const missingDocIds = new Set(missingDocs.map((d) => d.id));
   const pendingDocIds = new Set(pendingDocs.map((d) => d.id));
   const expiringTrainingIds = new Set(expiringTrainings.map((t) => t.id));
+  // PRC / NBI Clearance (and any other document with an expiry date) that has expired or will soon.
+  const expiringDocs = uploadedDocs
+    .map((d) => ({ doc: d, expiry: documentExpiry({ status: d.status, expiresOn: d.expires_on }) }))
+    .filter((x) => x.expiry && (x.expiry.expired || x.expiry.expiringSoon)) as {
+    doc: { id: string; name: string; expires_on: string | null };
+    expiry: NonNullable<ReturnType<typeof documentExpiry>>;
+  }[];
+  const expiringDocIds = new Set(expiringDocs.map((x) => x.doc.id));
 
   // Clear notifications for issues that are no longer true (doc got uploaded, etc.)
   for (const n of existing) {
@@ -114,6 +131,7 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
       (n.kind === "missing_document" && n.document_id !== null && missingDocIds.has(n.document_id)) ||
       (n.kind === "pending_document" && n.document_id !== null && pendingDocIds.has(n.document_id)) ||
       (n.kind === "expiring_training" && n.training_id !== null && expiringTrainingIds.has(n.training_id)) ||
+      (n.kind === "expiring_document" && n.document_id !== null && expiringDocIds.has(n.document_id)) ||
       n.kind === "pds_updated"; // stays until HR reads or deletes it
     if (!stillOpen) await execute("DELETE FROM notifications WHERE id = ?", [n.id]);
   }
@@ -123,6 +141,9 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
     existing.filter((n) => n.kind === "pending_document").map((n) => n.document_id),
   );
   const existingTrainingIds = new Set(existing.filter((n) => n.kind === "expiring_training").map((n) => n.training_id));
+  const existingExpiringDocIds = new Set(
+    existing.filter((n) => n.kind === "expiring_document").map((n) => n.document_id),
+  );
 
   for (const doc of missingDocs) {
     if (existingDocIds.has(doc.id)) continue;
@@ -154,6 +175,22 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
       ],
     );
   }
+  for (const { doc, expiry } of expiringDocs) {
+    const title = expiry.expired ? `${doc.name} expired` : `${doc.name} expiring soon`;
+    const detail = `${employee.display_name} (#${employee.employee_number}) — ${expiryPhrase(expiry).toLowerCase()} (${doc.expires_on}). Ask for a renewed copy.`;
+    if (existingExpiringDocIds.has(doc.id)) {
+      // keep the wording in step with the date (and with "expiring" turning into "expired")
+      await execute(
+        "UPDATE notifications SET title = ?, detail = ? WHERE document_id = ? AND kind = 'expiring_document'",
+        [title, detail, doc.id],
+      );
+      continue;
+    }
+    await execute(
+      "INSERT INTO notifications (id, employee_id, document_id, kind, title, detail, status) VALUES (?,?,?,?,?,?,?)",
+      [`n-${randomUUID()}`, employeeId, doc.id, "expiring_document", title, detail, "unread"],
+    );
+  }
   for (const t of expiringTrainings) {
     const detail =
       `${employee.display_name} (#${employee.employee_number})` +
@@ -182,8 +219,26 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
   }
 }
 
+/** Document expiry depends on today's date, not on anyone editing a record, so alerts are
+ *  re-checked for every employee with a dated document — at most once every 30 minutes. */
+let lastExpirySweep = 0;
+async function sweepExpiringDocuments(): Promise<void> {
+  if (Date.now() - lastExpirySweep < 30 * 60 * 1000) return;
+  lastExpirySweep = Date.now();
+  try {
+    const rows = await query<{ employee_id: string }>(
+      "SELECT DISTINCT employee_id FROM documents WHERE status = 'uploaded' AND expires_on IS NOT NULL",
+    );
+    for (const r of rows) await syncNotificationsForEmployee(r.employee_id);
+  } catch (err) {
+    console.error("sweepExpiringDocuments failed:", err);
+    lastExpirySweep = 0;
+  }
+}
+
 export async function listNotifications(): Promise<Notification[]> {
   await ensureNotificationSchema();
+  await sweepExpiringDocuments();
   const rows = await query<NotificationRow>(
     "SELECT * FROM notifications WHERE status <> 'dismissed' ORDER BY created_at DESC LIMIT 200",
   );
@@ -194,8 +249,9 @@ export async function listNotifications(): Promise<Notification[]> {
  *  already cleared), so the faculty bell can show when each item first came up. */
 export async function listNotificationsForEmployee(employeeId: string): Promise<Notification[]> {
   await ensureNotificationSchema();
+  await sweepExpiringDocuments();
   const rows = await query<NotificationRow>(
-    "SELECT * FROM notifications WHERE employee_id = ? AND kind IN ('missing_document','expiring_training') ORDER BY created_at DESC LIMIT 200",
+    "SELECT * FROM notifications WHERE employee_id = ? AND kind IN ('missing_document','expiring_training','expiring_document') ORDER BY created_at DESC LIMIT 200",
     [employeeId],
   );
   return rows.map(mapNotificationRow);

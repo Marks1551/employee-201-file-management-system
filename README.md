@@ -26,6 +26,7 @@ and **MySQL**. Uploaded files (documents, photos, chat attachments) are stored i
   eligibility, voluntary work, trainings (with certificates), references, performance
   reviews, attendance and government benefits
 - Upload documents directly, or **approve / reject** documents submitted by faculty
+- **PRC** and **NBI Clearance** carry an **expiry date**: it is entered on upload (or by faculty when they submit), shown in the documents tables, exports and reports, editable by HR after a renewal, and raises an _expiring soon_ / _expired_ notification (60-day warning window) for HR and the faculty member
 - Add or remove required document types for all employees
 - Search records, publish announcements, chat with faculty
 - Generate Excel reports (Employee List, Document Status) and export or print an

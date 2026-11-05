@@ -12,12 +12,20 @@ import Modal from "@/shared/components/Modal";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { usePagination } from "@/shared/lib/usePagination";
+import { DocumentExpiryCell, ExpiryDateModal } from "@/features/employees/components/DocumentExpiry";
+import { documentExpiry, documentNeedsExpiry } from "@/shared/lib/documentExpiry";
 import type { DocumentRecord } from "@/shared/types";
 
 interface DocumentRow extends DocumentRecord {
   empId: string;
   empName: string;
   empNumber: string;
+}
+
+/** An approved document (PRC / NBI Clearance) that has expired or is about to. */
+function isExpiring(doc: DocumentRecord): boolean {
+  const e = documentExpiry(doc);
+  return !!e && (e.expired || e.expiringSoon);
 }
 
 export default function DocumentManagement() {
@@ -30,11 +38,14 @@ export default function DocumentManagement() {
   // Dashboard cards link here with ?status=pending|missing|uploaded|rejected — open that tab.
   useEffect(() => {
     const wanted = new URLSearchParams(window.location.search).get("status");
-    if (wanted && ["uploaded", "pending", "missing", "rejected"].includes(wanted)) setStatusFilter(wanted);
+    if (wanted && ["uploaded", "pending", "missing", "rejected", "expiring"].includes(wanted)) setStatusFilter(wanted);
   }, []);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingRow = useRef<DocumentRow | null>(null);
+  // PRC / NBI Clearance: the chosen file waits here while HR enters its expiry date.
+  const [expiryUpload, setExpiryUpload] = useState<{ row: DocumentRow; file: File } | null>(null);
+  const [expiryBusy, setExpiryBusy] = useState(false);
   const [rejectRow, setRejectRow] = useState<DocumentRow | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [rejectBusy, setRejectBusy] = useState(false);
@@ -145,7 +156,8 @@ export default function DocumentManagement() {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       const matchesQuery = !q || r.empName.toLowerCase().includes(q) || r.name.toLowerCase().includes(q);
-      const matchesStatus = statusFilter === "all" || r.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || (statusFilter === "expiring" ? isExpiring(r) : r.status === statusFilter);
       return matchesQuery && matchesStatus;
     });
   }, [rows, query, statusFilter]);
@@ -163,15 +175,32 @@ export default function DocumentManagement() {
     const row = pendingRow.current;
     pendingRow.current = null;
     if (!file || !row) return;
+    // PRC and NBI Clearance need an expiry date first.
+    if (documentNeedsExpiry(row.name)) {
+      setExpiryUpload({ row, file });
+      return;
+    }
+    await finishUpload(row, file);
+  }
+
+  async function finishUpload(row: DocumentRow, file: File, expiresOn?: string) {
     const key = `${row.empId}-${row.id}`;
     setBusyKey(key);
-    const result = await uploadDocument(row.empId, row.id, file);
+    const result = await uploadDocument(row.empId, row.id, file, expiresOn);
     setBusyKey(null);
     if (!result.ok) {
       showToast(result.error);
       return;
     }
     showToast(`Uploaded "${row.name}" for ${row.empName}.`);
+  }
+
+  async function handleConfirmExpiryUpload(isoDate: string) {
+    if (!expiryUpload) return;
+    setExpiryBusy(true);
+    await finishUpload(expiryUpload.row, expiryUpload.file, isoDate);
+    setExpiryBusy(false);
+    setExpiryUpload(null);
   }
 
   async function handleApprove(row: DocumentRow) {
@@ -222,6 +251,7 @@ export default function DocumentManagement() {
       pending: base.filter((r) => r.status === "pending").length,
       missing: base.filter((r) => r.status === "missing").length,
       rejected: base.filter((r) => r.status === "rejected").length,
+      expiring: base.filter(isExpiring).length,
     } as Record<string, number>;
   }, [rows, query]);
 
@@ -231,6 +261,7 @@ export default function DocumentManagement() {
     { key: "pending", label: "Pending" },
     { key: "missing", label: "Missing" },
     { key: "rejected", label: "Rejected" },
+    { key: "expiring", label: "Expiring" },
   ];
 
   function changeTab(key: string) {
@@ -366,13 +397,14 @@ export default function DocumentManagement() {
       </div>
 
       <TableWrap>
-        <table className="w-full border-collapse min-w-[640px]">
+        <table className="w-full border-collapse min-w-[760px]">
           <thead>
             <tr>
               <Th>Employee</Th>
               <Th>Document</Th>
               <Th>Status</Th>
               <Th>Uploaded</Th>
+              <Th>Expires</Th>
               <Th>Actions</Th>
             </tr>
           </thead>
@@ -391,6 +423,9 @@ export default function DocumentManagement() {
                   {r.status === "missing" && <Tag kind="danger">Missing</Tag>}
                 </Td>
                 <Td>{r.uploaded || "—"}</Td>
+                <Td>
+                  <DocumentExpiryCell doc={r} />
+                </Td>
                 <Td>
                   {r.status === "pending" ? (
                     <div className="flex items-center gap-2">
@@ -457,7 +492,7 @@ export default function DocumentManagement() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <Td colSpan={5} className="text-ink-faint">
+                <Td colSpan={6} className="text-ink-faint">
                   No documents in this tab match your search.
                 </Td>
               </tr>
@@ -481,6 +516,20 @@ export default function DocumentManagement() {
         accept="application/pdf,image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={handleFileChange}
+      />
+
+      <ExpiryDateModal
+        open={!!expiryUpload}
+        title="Expiry date"
+        description={
+          expiryUpload
+            ? `Enter the expiry date of ${expiryUpload.row.empName}'s ${expiryUpload.row.name} before it is uploaded. HR will be reminded when it is about to expire.`
+            : undefined
+        }
+        confirmLabel="Upload Document"
+        busy={expiryBusy}
+        onClose={() => setExpiryUpload(null)}
+        onConfirm={handleConfirmExpiryUpload}
       />
 
       <Modal

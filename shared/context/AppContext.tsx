@@ -106,7 +106,15 @@ export interface AppContextValue {
   setEmployeeStatus: (id: string, status: EmployeeStatus, reason?: string | null) => Promise<ActionResult>;
   deleteEmployee: (id: string) => Promise<ActionResult>;
 
-  uploadDocument: (employeeId: string, docId: string, docFile?: File | null) => Promise<ActionResult>;
+  /** `expiresOn` is a yyyy-mm-dd date, required for PRC / NBI Clearance. */
+  uploadDocument: (
+    employeeId: string,
+    docId: string,
+    docFile?: File | null,
+    expiresOn?: string,
+  ) => Promise<ActionResult>;
+  /** HR/admin: set or correct the expiry date (yyyy-mm-dd) of an approved document. */
+  updateDocumentExpiry: (employeeId: string, docId: string, expiresOn: string) => Promise<ActionResult>;
   removeDocument: (employeeId: string, docId: string) => Promise<ActionResult>;
   approveDocument: (employeeId: string, docId: string) => Promise<ActionResult>;
   rejectDocument: (employeeId: string, docId: string, note?: string) => Promise<ActionResult>;
@@ -116,6 +124,7 @@ export interface AppContextValue {
     employeeId: string | null | undefined,
     docTypeName: string,
     docFile?: File | null,
+    expiresOn?: string,
   ) => Promise<ActionResult>;
 
   /** HR/admin: ask for a new document from everyone (no employeeId) or one employee. */
@@ -550,13 +559,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
    *  omitted, the document is simply flagged as uploaded with no file stored.
    *  Returns { ok, error? }. */
   const uploadDocument = useCallback(
-    async (employeeId: string, docId: string, docFile?: File | null): Promise<ActionResult> => {
+    async (employeeId: string, docId: string, docFile?: File | null, expiresOn?: string): Promise<ActionResult> => {
       try {
         const body = new FormData();
         if (docFile) body.append("file", docFile);
+        if (expiresOn) body.append("expiresOn", expiresOn);
         const res = await fetch(`/api/employees/${employeeId}/documents/${docId}`, { method: "POST", body });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Document upload failed.");
+        setEmployees((list) => list.map((e) => (e.id === employeeId ? data.employee : e)));
+        const { notifications: fresh } = await api<{ notifications: Notification[] }>("/api/notifications");
+        setNotifications(fresh);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: errorMessage(err) };
+      }
+    },
+    [],
+  );
+
+  /** Sets or corrects the expiry date (yyyy-mm-dd) of an approved document. */
+  const updateDocumentExpiry = useCallback(
+    async (employeeId: string, docId: string, expiresOn: string): Promise<ActionResult> => {
+      try {
+        const res = await fetch(`/api/employees/${employeeId}/documents/${docId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expiresOn }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not update the expiry date.");
         setEmployees((list) => list.map((e) => (e.id === employeeId ? data.employee : e)));
         const { notifications: fresh } = await api<{ notifications: Notification[] }>("/api/notifications");
         setNotifications(fresh);
@@ -695,12 +727,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       employeeId: string | null | undefined,
       docTypeName: string,
       docFile?: File | null,
+      expiresOn?: string,
     ): Promise<ActionResult> => {
       try {
         const body = new FormData();
         body.append("docTypeName", docTypeName);
         if (employeeId) body.append("employeeId", employeeId);
         if (docFile) body.append("file", docFile);
+        if (expiresOn) body.append("expiresOn", expiresOn);
         const res = await fetch("/api/documents/submit", { method: "POST", body });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Document submission failed.");
@@ -989,6 +1023,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEmployeeStatus,
     deleteEmployee,
     uploadDocument,
+    updateDocumentExpiry,
     removeDocument,
     approveDocument,
     rejectDocument,

@@ -9,6 +9,8 @@ import { Card, Button, Field, inputCls, Tag } from "@/shared/components/ui";
 import { TableWrap, Th, Td } from "@/shared/components/Table";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
+import { DocumentExpiryCell } from "@/features/employees/components/DocumentExpiry";
+import { documentNeedsExpiry } from "@/shared/lib/documentExpiry";
 
 // Always available regardless of HR's requirements (not tied to a required document).
 const generalTypes = ["Training Certificate", "Other"];
@@ -18,6 +20,7 @@ export default function SubmitDocument() {
   const showToast = useToast();
   const [docType, setDocType] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [expiresOn, setExpiresOn] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputId = "docfile";
@@ -53,6 +56,8 @@ export default function SubmitDocument() {
     if (!docType && options.all.length) setDocType(options.needed[0] || options.all[0]);
   }, [docType, options]);
 
+  const needsExpiry = documentNeedsExpiry(docType);
+
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="Submit a Document" />;
   if (isRecordInactive(currentEmployee)) {
@@ -74,8 +79,12 @@ export default function SubmitDocument() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!file || !currentEmployee) return;
+    if (needsExpiry && !expiresOn) {
+      showToast(`Please enter the expiry date of your ${docType}.`);
+      return;
+    }
     setSubmitting(true);
-    const result = await submitDocument(currentEmployee.id, docType, file);
+    const result = await submitDocument(currentEmployee.id, docType, file, needsExpiry ? expiresOn : undefined);
     setSubmitting(false);
     if (!result.ok) {
       showToast(result.error);
@@ -83,6 +92,7 @@ export default function SubmitDocument() {
     }
     showToast("Document submitted. HR will review your upload shortly.");
     setFile(null);
+    setExpiresOn("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -137,7 +147,25 @@ export default function SubmitDocument() {
                 onChange={handleFileChange}
               />
             </Field>
-            <Button type="submit" disabled={!file || submitting} className="w-full">
+            {needsExpiry && (
+              <Field
+                label="Expiry date"
+                htmlFor="docexpiry"
+                hint="The “valid until” date printed on your document. HR will be reminded before it expires."
+              >
+                <input
+                  id="docexpiry"
+                  type="date"
+                  className={inputCls}
+                  value={expiresOn}
+                  min="2000-01-01"
+                  max="2100-12-31"
+                  onChange={(e) => setExpiresOn(e.target.value)}
+                  required
+                />
+              </Field>
+            )}
+            <Button type="submit" disabled={!file || submitting || (needsExpiry && !expiresOn)} className="w-full">
               <UploadCloud size={18} />
               {submitting ? "Submitting…" : "Submit Document"}
             </Button>
@@ -147,11 +175,12 @@ export default function SubmitDocument() {
         <div>
           <h3 className="mb-3">Current document status</h3>
           <TableWrap>
-            <table className="w-full border-collapse min-w-[380px]">
+            <table className="w-full border-collapse min-w-[460px]">
               <thead>
                 <tr>
                   <Th>Document</Th>
                   <Th>Status</Th>
+                  <Th>Expires</Th>
                 </tr>
               </thead>
               <tbody>
@@ -177,6 +206,9 @@ export default function SubmitDocument() {
                           View rejected file
                         </a>
                       )}
+                    </Td>
+                    <Td>
+                      <DocumentExpiryCell doc={doc} />
                     </Td>
                   </tr>
                 ))}

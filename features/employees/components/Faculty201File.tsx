@@ -19,6 +19,7 @@ import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
 import CertificateStatus from "@/features/employees/components/CertificateStatus";
 import RecordManager from "@/features/employees/components/RecordManager";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
+import { DocumentExpiryCell } from "@/features/employees/components/DocumentExpiry";
 
 interface ReadOnlyColumn<T> {
   key: string;
@@ -199,6 +200,11 @@ export default function Faculty201File() {
                     ),
                 },
                 { key: "uploaded", label: "Uploaded" },
+                {
+                  key: "expires",
+                  label: "Expires",
+                  render: (d) => <DocumentExpiryCell doc={d} />,
+                },
                 {
                   key: "reviewNote",
                   label: "Note",

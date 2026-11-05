@@ -7,6 +7,7 @@ import { query, execute, withTransaction } from "@/shared/server/db";
 import { fmt, initials } from "@/shared/server/format";
 import { nowStamp } from "@/shared/lib/roles";
 import { syncNotificationsForEmployee } from "@/features/notifications/server/service";
+import { ensureDocumentExpiryColumns } from "@/shared/server/documentExpiryColumns";
 import type {
   Employee,
   EmployeeInput,
@@ -116,6 +117,8 @@ function mapDocRow(row: DocumentRow): DocumentRecord {
     reviewedBy: row.reviewed_by || null,
     reviewedAt: row.reviewed_at || null,
     reviewNote: row.review_note || null,
+    expiresOn: row.expires_on || null,
+    pendingExpiresOn: row.pending_expires_on || null,
   };
 }
 
@@ -722,11 +725,22 @@ export async function markDocumentUploaded(
   employeeId: string,
   docId: string,
   file?: StoredFile | null,
+  expiresOn?: string | null,
 ): Promise<string | null> {
+  await ensureDocumentExpiryColumns();
   const stamp = nowStamp();
   await execute(
-    "UPDATE documents SET status = ?, uploaded_at = ?, file_url = ?, file_name = ?, file_type = ?, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, submitted_at = NULL WHERE id = ? AND employee_id = ?",
-    ["uploaded", stamp, file?.url || null, file?.name || null, file?.type || null, docId, employeeId],
+    "UPDATE documents SET status = ?, uploaded_at = ?, file_url = ?, file_name = ?, file_type = ?, expires_on = ?, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, pending_expires_on = NULL, submitted_at = NULL WHERE id = ? AND employee_id = ?",
+    [
+      "uploaded",
+      stamp,
+      file?.url || null,
+      file?.name || null,
+      file?.type || null,
+      expiresOn || null,
+      docId,
+      employeeId,
+    ],
   );
   const rows = await query<DocumentRow>("SELECT name FROM documents WHERE id = ?", [docId]);
   await syncNotificationsForEmployee(employeeId);
@@ -736,16 +750,37 @@ export async function markDocumentUploaded(
 /** Clears a document's stored file and reverts it to missing. Returns the
  *  previous file_url (if any) so the caller can delete it from disk. */
 export async function clearDocumentFile(employeeId: string, docId: string): Promise<string | null> {
+  await ensureDocumentExpiryColumns();
   const rows = await query<DocumentRow>("SELECT file_url FROM documents WHERE id = ? AND employee_id = ?", [
     docId,
     employeeId,
   ]);
   await execute(
-    "UPDATE documents SET status = ?, uploaded_at = NULL, file_url = NULL, file_name = NULL, file_type = NULL, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, submitted_at = NULL WHERE id = ? AND employee_id = ?",
+    "UPDATE documents SET status = ?, uploaded_at = NULL, file_url = NULL, file_name = NULL, file_type = NULL, expires_on = NULL, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, pending_expires_on = NULL, submitted_at = NULL WHERE id = ? AND employee_id = ?",
     ["missing", docId, employeeId],
   );
   await syncNotificationsForEmployee(employeeId);
   return rows[0]?.file_url || null;
+}
+
+/** HR sets or corrects the expiry date of an approved document (e.g. after a renewal, or for
+ *  files uploaded before expiry dates existed). Returns the document name, or null if there
+ *  is no approved document with that id. */
+export async function updateDocumentExpiry(
+  employeeId: string,
+  docId: string,
+  expiresOn: string | null,
+): Promise<string | null> {
+  await ensureDocumentExpiryColumns();
+  const rows = await query<DocumentRow>("SELECT name, status FROM documents WHERE id = ? AND employee_id = ?", [
+    docId,
+    employeeId,
+  ]);
+  const doc = rows[0];
+  if (!doc || doc.status !== "uploaded") return null;
+  await execute("UPDATE documents SET expires_on = ? WHERE id = ? AND employee_id = ?", [expiresOn, docId, employeeId]);
+  await syncNotificationsForEmployee(employeeId);
+  return doc.name;
 }
 
 /** Faculty-facing submission. Stores the file under `pending_file_*` and
@@ -756,7 +791,9 @@ export async function submitEmployeeDocument(
   employeeId: string,
   docTypeName: string,
   file?: StoredFile | null,
+  expiresOn?: string | null,
 ): Promise<string> {
+  await ensureDocumentExpiryColumns();
   const existing = await query<DocumentRow>("SELECT id FROM documents WHERE employee_id = ? AND name = ?", [
     employeeId,
     docTypeName,
@@ -765,14 +802,24 @@ export async function submitEmployeeDocument(
   let docId = existing[0]?.id;
   if (existing.length) {
     await execute(
-      "UPDATE documents SET status = ?, submitted_at = ?, pending_file_url = ?, pending_file_name = ?, pending_file_type = ?, reviewed_by = NULL, reviewed_at = NULL, review_note = NULL WHERE id = ?",
-      ["pending", stamp, file?.url || null, file?.name || null, file?.type || null, existing[0].id],
+      "UPDATE documents SET status = ?, submitted_at = ?, pending_file_url = ?, pending_file_name = ?, pending_file_type = ?, pending_expires_on = ?, reviewed_by = NULL, reviewed_at = NULL, review_note = NULL WHERE id = ?",
+      ["pending", stamp, file?.url || null, file?.name || null, file?.type || null, expiresOn || null, existing[0].id],
     );
   } else {
     docId = `d-${randomUUID()}`;
     await execute(
-      "INSERT INTO documents (id, employee_id, name, status, submitted_at, pending_file_url, pending_file_name, pending_file_type) VALUES (?,?,?,?,?,?,?,?)",
-      [docId, employeeId, docTypeName, "pending", stamp, file?.url || null, file?.name || null, file?.type || null],
+      "INSERT INTO documents (id, employee_id, name, status, submitted_at, pending_file_url, pending_file_name, pending_file_type, pending_expires_on) VALUES (?,?,?,?,?,?,?,?,?)",
+      [
+        docId,
+        employeeId,
+        docTypeName,
+        "pending",
+        stamp,
+        file?.url || null,
+        file?.name || null,
+        file?.type || null,
+        expiresOn || null,
+      ],
     );
   }
   await syncNotificationsForEmployee(employeeId);
@@ -794,11 +841,23 @@ export async function approveEmployeeDocument(
   const doc = rows[0];
   if (!doc || doc.status !== "pending") return null;
   const stamp = nowStamp();
+  await ensureDocumentExpiryColumns();
+  const [fresh] = await query<DocumentRow>("SELECT pending_expires_on FROM documents WHERE id = ?", [docId]);
   await execute(
     `UPDATE documents SET status = 'uploaded', uploaded_at = ?, file_url = ?, file_name = ?, file_type = ?,
-       pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL, submitted_at = NULL,
+       expires_on = ?, pending_file_url = NULL, pending_file_name = NULL, pending_file_type = NULL,
+       pending_expires_on = NULL, submitted_at = NULL,
        reviewed_by = ?, reviewed_at = ?, review_note = NULL WHERE id = ?`,
-    [stamp, doc.pending_file_url, doc.pending_file_name, doc.pending_file_type, reviewerName, stamp, docId],
+    [
+      stamp,
+      doc.pending_file_url,
+      doc.pending_file_name,
+      doc.pending_file_type,
+      fresh?.pending_expires_on || null,
+      reviewerName,
+      stamp,
+      docId,
+    ],
   );
   await syncNotificationsForEmployee(employeeId);
   return doc.name;

@@ -8,6 +8,7 @@
 
 import ExcelJS from "exceljs";
 import { certStatusText } from "@/shared/lib/trainingExpiry";
+import { expiryText } from "@/shared/lib/documentExpiry";
 import type { Employee } from "@/shared/types";
 import { COLOR, thinBorder, allBorders, setColumnWidths, downloadWorkbookBuffer } from "@/shared/lib/xlsxTheme";
 
@@ -411,8 +412,13 @@ async function buildEmployeeSheet(wb: ExcelJS.Workbook, employee: Employee, shee
 
   table(
     "Documents on File",
-    ["Document", "Status", "Uploaded"],
-    employee.documents.map((d) => [d.name, d.status === "uploaded" ? "Uploaded" : "Missing", d.uploaded || ""]),
+    ["Document", "Status", "Uploaded", "Expires"],
+    employee.documents.map((d) => [
+      d.name,
+      d.status === "uploaded" ? "Uploaded" : "Missing",
+      d.uploaded || "",
+      expiryText(d),
+    ]),
     "No documents on file.",
   );
 }

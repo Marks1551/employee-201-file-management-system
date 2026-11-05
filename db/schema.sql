@@ -68,6 +68,11 @@ CREATE TABLE IF NOT EXISTS documents (
   reviewed_by          VARCHAR(150),
   reviewed_at          VARCHAR(60),
   review_note          VARCHAR(500),
+  -- Expiry date of the file of record (PRC / NBI Clearance), stored like the other
+  -- dates in the app ("March 11, 2027"). pending_expires_on is the date entered with
+  -- a faculty submission; it moves to expires_on when HR approves.
+  expires_on           VARCHAR(60),
+  pending_expires_on   VARCHAR(60),
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -321,7 +326,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   employee_id  VARCHAR(64) NOT NULL,
   document_id  VARCHAR(64),
   training_id  VARCHAR(64),
-  kind         ENUM('missing_document','expiring_training','pending_document','pds_updated') NOT NULL,
+  kind         ENUM('missing_document','expiring_training','expiring_document','pending_document','pds_updated') NOT NULL,
   title        VARCHAR(200) NOT NULL,
   detail       VARCHAR(255),
   status       ENUM('unread','read') NOT NULL DEFAULT 'unread',
