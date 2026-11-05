@@ -56,6 +56,8 @@ export interface TrainingRecord {
   hours: string | null;
   ldType: string | null;
   conductedBy: string | null;
+  /** Exact date the certificate expires; only set while certStatus is "expiring". */
+  expiresOn: string | null;
 }
 
 export interface EducationRecord {
@@ -494,6 +496,8 @@ export interface TrainingRow {
   hours: string | null;
   ld_type: string | null;
   conducted_by: string | null;
+  /** Added later; may be missing on databases that haven't been migrated yet. */
+  expires_on?: string | null;
 }
 
 export interface EducationRow {

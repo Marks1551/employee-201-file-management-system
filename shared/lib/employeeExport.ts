@@ -6,6 +6,7 @@
 // export is a plain summary of the employee record itself.
 
 import type { Employee } from "@/shared/types";
+import { certStatusText } from "@/shared/lib/trainingExpiry";
 import { printHtmlDocument } from "./printDocument";
 
 function esc(value: string | number | null | undefined): string {
@@ -154,7 +155,7 @@ function buildHtml(employee: Employee): string {
       esc(t.fromDate),
       esc(t.completed),
       esc(t.hours),
-      t.certStatus === "on-file" ? "On file" : "Expiring soon",
+      certStatusText(t),
     ]),
     "No training records on file.",
   )}

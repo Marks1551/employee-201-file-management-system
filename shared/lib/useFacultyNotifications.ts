@@ -130,7 +130,9 @@ export function useFacultyNotifications(
           id: `expiring:${t.id}`,
           kind: "expiring",
           title: `${t.course} certificate expiring soon`,
-          detail: "Upload a renewed certificate to keep your 201 file up to date.",
+          detail: t.expiresOn
+            ? `Expires on ${t.expiresOn}. Get a renewed certificate to keep your 201 file up to date.`
+            : "Get a renewed certificate to keep your 201 file up to date.",
           when: trainingTime.get(t.id) || null,
           href: "/faculty/201file",
         });

@@ -674,6 +674,16 @@ async function main() {
     }
   }
 
+  // Migration: databases created before training certificates had an exact expiry date.
+  const [expCol] = await conn.query(
+    "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'trainings' AND COLUMN_NAME = 'expires_on'",
+    [dbName],
+  );
+  if (expCol.length === 0) {
+    console.log("Migrating: adding expires_on column to trainings...");
+    await conn.query("ALTER TABLE trainings ADD COLUMN expires_on VARCHAR(60) NULL");
+  }
+
   // Migration: databases created before the document review/approval feature
   // won't have the pending_* review columns, or the 'pending'/'rejected'
   // status values, on documents yet.

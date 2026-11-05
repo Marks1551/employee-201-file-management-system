@@ -92,8 +92,8 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
     query<{ id: string; name: string }>("SELECT id, name FROM documents WHERE employee_id = ? AND status = 'pending'", [
       employeeId,
     ]),
-    query<{ id: string; course: string; provider: string | null }>(
-      "SELECT id, course, provider FROM trainings WHERE employee_id = ? AND cert_status = 'expiring' AND archived_at IS NULL",
+    query<{ id: string; course: string; provider: string | null; expires_on?: string | null }>(
+      "SELECT * FROM trainings WHERE employee_id = ? AND cert_status = 'expiring' AND archived_at IS NULL",
       [employeeId],
     ),
     query<{ id: string; document_id: string | null; training_id: string | null; kind: string }>(
@@ -155,7 +155,18 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
     );
   }
   for (const t of expiringTrainings) {
-    if (existingTrainingIds.has(t.id)) continue;
+    const detail =
+      `${employee.display_name} (#${employee.employee_number})` +
+      (t.provider ? ` — provided by ${t.provider}.` : ".") +
+      (t.expires_on ? ` Expires on ${t.expires_on}.` : "");
+    if (existingTrainingIds.has(t.id)) {
+      // keep the message in step with edits to the expiry date
+      await execute("UPDATE notifications SET detail = ? WHERE training_id = ? AND kind = 'expiring_training'", [
+        detail,
+        t.id,
+      ]);
+      continue;
+    }
     await execute(
       "INSERT INTO notifications (id, employee_id, training_id, kind, title, detail, status) VALUES (?,?,?,?,?,?,?)",
       [
@@ -164,7 +175,7 @@ export async function syncNotificationsForEmployee(employeeId: string): Promise<
         t.id,
         "expiring_training",
         `${t.course} certificate expiring soon`,
-        `${employee.display_name} (#${employee.employee_number}) — provided by ${t.provider}.`,
+        detail,
         "unread",
       ],
     );

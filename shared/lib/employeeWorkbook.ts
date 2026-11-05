@@ -7,6 +7,7 @@
 // elsewhere in this app for exports) can't write cell styling.
 
 import ExcelJS from "exceljs";
+import { certStatusText } from "@/shared/lib/trainingExpiry";
 import type { Employee } from "@/shared/types";
 import { COLOR, thinBorder, allBorders, setColumnWidths, downloadWorkbookBuffer } from "@/shared/lib/xlsxTheme";
 
@@ -374,7 +375,7 @@ async function buildEmployeeSheet(wb: ExcelJS.Workbook, employee: Employee, shee
       t.fromDate || "",
       t.completed || "",
       t.hours || "",
-      t.certStatus === "on-file" ? "On file" : "Expiring soon",
+      certStatusText(t),
     ]),
     "No training records on file.",
   );

@@ -133,6 +133,7 @@ function mapTrainingRow(row: TrainingRow): TrainingRecord {
     hours: row.hours || null,
     ldType: row.ld_type || null,
     conductedBy: row.conducted_by || null,
+    expiresOn: row.expires_on || null,
   };
 }
 
@@ -836,23 +837,46 @@ export interface TrainingInput {
   hours?: string | null;
   ldType?: string | null;
   conductedBy?: string | null;
+  expiresOn?: string | null;
+}
+
+/** The expires_on column was added after the first release; add it on first use so existing
+ *  databases don't need a manual migration. */
+let expiryColumnReady: Promise<void> | null = null;
+function ensureTrainingExpiryColumn(): Promise<void> {
+  if (!expiryColumnReady) {
+    expiryColumnReady = (async () => {
+      const rows = await query<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trainings' AND COLUMN_NAME = 'expires_on'",
+      );
+      if (!Number(rows[0]?.c)) await execute("ALTER TABLE trainings ADD COLUMN expires_on VARCHAR(60) NULL");
+    })().catch((err) => {
+      expiryColumnReady = null; // try again on the next request
+      throw err;
+    });
+  }
+  return expiryColumnReady;
 }
 
 export async function addTraining(employeeId: string, data: TrainingInput): Promise<string> {
+  await ensureTrainingExpiryColumn();
   const id = `t-${randomUUID()}`;
+  const certStatus = data.certStatus || "on-file";
   await execute(
-    "INSERT INTO trainings (id, employee_id, course, provider, completed, cert_status, from_date, hours, ld_type, conducted_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
+    "INSERT INTO trainings (id, employee_id, course, provider, completed, cert_status, from_date, hours, ld_type, conducted_by, expires_on) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
     [
       id,
       employeeId,
       data.course,
       data.provider || null,
       data.completed || null,
-      data.certStatus || "on-file",
+      certStatus,
       data.fromDate || null,
       data.hours || null,
       data.ldType || null,
       data.conductedBy || null,
+      // the exact expiry date only applies while the certificate is "expiring soon"
+      certStatus === "expiring" ? data.expiresOn || null : null,
     ],
   );
   await syncNotificationsForEmployee(employeeId);
@@ -868,19 +892,25 @@ const TRAINING_COLUMNS: Record<string, string> = {
   hours: "hours",
   ldType: "ld_type",
   conductedBy: "conducted_by",
+  expiresOn: "expires_on",
 };
 
 export async function updateTraining(
   employeeId: string,
   trainingId: string,
-  patch: Patch<TrainingInput>,
+  rawPatch: Patch<TrainingInput>,
 ): Promise<void> {
+  await ensureTrainingExpiryColumn();
+  // Switching back to "on file" clears the expiry date.
+  const patch: Patch<TrainingInput> =
+    rawPatch.certStatus && rawPatch.certStatus !== "expiring" ? { ...rawPatch, expiresOn: null } : rawPatch;
   const sets: string[] = [];
   const params: unknown[] = [];
   for (const [key, col] of Object.entries(TRAINING_COLUMNS)) {
     if (key in patch) {
       sets.push(`${col} = ?`);
-      params.push((patch as Record<string, unknown>)[key]);
+      const value = (patch as Record<string, unknown>)[key];
+      params.push(key === "expiresOn" && value === "" ? null : value);
     }
   }
   if (sets.length) {

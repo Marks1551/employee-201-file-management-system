@@ -25,6 +25,8 @@ export interface RecordField {
   options?: (FieldOption | string)[];
   hint?: string;
   required?: boolean;
+  /** When set, the field only shows (and only counts as required) while this returns true. */
+  showWhen?: (form: Record<string, unknown>) => boolean;
 }
 
 export interface RecordColumn<T> {
@@ -50,7 +52,8 @@ interface RecordManagerProps<T extends RecordItem> {
   employeeName: ReactNode;
   onAdd: (data: Record<string, unknown>) => Promise<ActionResult>;
   onUpdate: (id: string, data: Record<string, unknown>) => Promise<ActionResult>;
-  onDelete: (id: string) => Promise<ActionResult>;
+  /** Omit to hide the Delete/Archive button (e.g. for roles that may add and edit only). */
+  onDelete?: (id: string) => Promise<ActionResult>;
   /** When true, the remove action reads "Archive" (record is hidden, not erased). */
   archive?: boolean;
   rowActions?: (item: T) => ReactNode;
@@ -111,7 +114,9 @@ export default function RecordManager<T extends RecordItem>({
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (!modal) return;
-    const requiredField = fields.find((f) => f.required && !String(form[f.key] ?? "").trim());
+    const requiredField = fields.find(
+      (f) => f.required && (!f.showWhen || f.showWhen(form)) && !String(form[f.key] ?? "").trim(),
+    );
     if (requiredField) return;
     setSaving(true);
     const result = modal.mode === "add" ? await onAdd(form) : await onUpdate(modal.item.id, form);
@@ -131,7 +136,7 @@ export default function RecordManager<T extends RecordItem>({
   const verb = archive ? "Archive" : "Delete";
 
   async function handleDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !onDelete) return;
     setDeleting(true);
     const result = await onDelete(deleteTarget.id);
     setDeleting(false);
@@ -184,10 +189,12 @@ export default function RecordManager<T extends RecordItem>({
                         <Pencil size={14} />
                         Edit
                       </Button>
-                      <Button variant="danger" sm onClick={() => setDeleteTarget(item)}>
-                        {archive ? <Archive size={14} /> : <Trash2 size={14} />}
-                        {verb}
-                      </Button>
+                      {onDelete && (
+                        <Button variant="danger" sm onClick={() => setDeleteTarget(item)}>
+                          {archive ? <Archive size={14} /> : <Trash2 size={14} />}
+                          {verb}
+                        </Button>
+                      )}
                     </div>
                   </Td>
                 )}
@@ -214,48 +221,50 @@ export default function RecordManager<T extends RecordItem>({
             title={modal?.mode === "add" ? addButtonLabel : `Edit ${typeLabel}`}
           >
             <form onSubmit={handleSave}>
-              {fields.map((f) => (
-                <Field key={f.key} label={f.label} hint={f.hint}>
-                  {f.type === "select" ? (
-                    <select
-                      className={inputCls}
-                      value={(form[f.key] as string) ?? ""}
-                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                    >
-                      {(f.options || []).map((o) => {
-                        const opt = typeof o === "string" ? { value: o, label: o } : o;
-                        return (
-                          <option key={String(opt.value)} value={opt.value}>
-                            {opt.label ?? opt.value}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  ) : f.type === "textarea" ? (
-                    <textarea
-                      className={`${inputCls} min-h-[90px] py-2.5`}
-                      value={(form[f.key] as string) ?? ""}
-                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                    />
-                  ) : f.type === "date" ? (
-                    <input
-                      type="date"
-                      className={inputCls}
-                      value={toInputDate(form[f.key] as string)}
-                      onChange={(e) => setForm({ ...form, [f.key]: fromInputDate(e.target.value) })}
-                      required={f.required}
-                    />
-                  ) : (
-                    <input
-                      type={f.type === "number" ? "number" : "text"}
-                      className={inputCls}
-                      value={(form[f.key] as string | number) ?? ""}
-                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                      required={f.required}
-                    />
-                  )}
-                </Field>
-              ))}
+              {fields
+                .filter((f) => !f.showWhen || f.showWhen(form))
+                .map((f) => (
+                  <Field key={f.key} label={f.label} hint={f.hint}>
+                    {f.type === "select" ? (
+                      <select
+                        className={inputCls}
+                        value={(form[f.key] as string) ?? ""}
+                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      >
+                        {(f.options || []).map((o) => {
+                          const opt = typeof o === "string" ? { value: o, label: o } : o;
+                          return (
+                            <option key={String(opt.value)} value={opt.value}>
+                              {opt.label ?? opt.value}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    ) : f.type === "textarea" ? (
+                      <textarea
+                        className={`${inputCls} min-h-[90px] py-2.5`}
+                        value={(form[f.key] as string) ?? ""}
+                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      />
+                    ) : f.type === "date" ? (
+                      <input
+                        type="date"
+                        className={inputCls}
+                        value={toInputDate(form[f.key] as string)}
+                        onChange={(e) => setForm({ ...form, [f.key]: fromInputDate(e.target.value) })}
+                        required={f.required}
+                      />
+                    ) : (
+                      <input
+                        type={f.type === "number" ? "number" : "text"}
+                        className={inputCls}
+                        value={(form[f.key] as string | number) ?? ""}
+                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                        required={f.required}
+                      />
+                    )}
+                  </Field>
+                ))}
               <Button type="submit" className="w-full mt-2" disabled={saving}>
                 {saving ? "Saving…" : modal?.mode === "add" ? addButtonLabel : "Save Changes"}
               </Button>

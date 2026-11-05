@@ -11,6 +11,7 @@ import { TableWrap, Th, Td } from "@/shared/components/Table";
 import Modal from "@/shared/components/Modal";
 import RecordManager from "@/features/employees/components/RecordManager";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
+import CertificateStatus from "@/features/employees/components/CertificateStatus";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
@@ -588,6 +589,14 @@ export default function HREmployeeFile() {
                       { value: "expiring", label: "Expiring soon" },
                     ],
                   },
+                  {
+                    key: "expiresOn",
+                    label: "Expiry date",
+                    type: "date",
+                    required: true,
+                    showWhen: (f) => f.certStatus === "expiring",
+                    hint: "The exact date the certificate expires.",
+                  },
                 ]}
                 emptyForm={{
                   course: "",
@@ -598,6 +607,7 @@ export default function HREmployeeFile() {
                   ldType: "",
                   conductedBy: "",
                   certStatus: "on-file",
+                  expiresOn: "",
                 }}
                 columns={[
                   { key: "course", label: "Training / Course" },
@@ -606,8 +616,7 @@ export default function HREmployeeFile() {
                   {
                     key: "certStatus",
                     label: "Certificate",
-                    render: (t) =>
-                      t.certStatus === "on-file" ? <Tag kind="ok">On file</Tag> : <Tag kind="warn">Expiring soon</Tag>,
+                    render: (t) => <CertificateStatus training={t} />,
                   },
                   {
                     key: "certFile",

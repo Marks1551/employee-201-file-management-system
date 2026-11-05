@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS trainings (
   hours          VARCHAR(20),
   ld_type        VARCHAR(60),
   conducted_by   VARCHAR(200),
+  -- Exact date the certificate expires (only used while cert_status = 'expiring')
+  expires_on     VARCHAR(60) NULL,
   archived_at    VARCHAR(60) NULL,
   FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

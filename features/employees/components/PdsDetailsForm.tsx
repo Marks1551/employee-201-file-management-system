@@ -137,6 +137,8 @@ function YesNo({
 interface Props {
   employee: Employee;
   readOnly?: boolean;
+  /** Faculty can add and edit their trainings but only HR can archive them. */
+  canArchiveTraining?: boolean;
 }
 
 /**
@@ -146,7 +148,7 @@ interface Props {
  * Scalar fields save as one JSON patch; eligibility, voluntary work, and
  * references are repeatable records managed the same way as Education etc.
  */
-export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
+export default function PdsDetailsForm({ employee, readOnly = false, canArchiveTraining = true }: Props) {
   const {
     updateEmployee,
     addCivilServiceEligibility,
@@ -902,6 +904,14 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
                 { value: "expiring", label: "Expiring soon" },
               ],
             },
+            {
+              key: "expiresOn",
+              label: "Expiry date",
+              type: "date",
+              required: true,
+              showWhen: (f) => f.certStatus === "expiring",
+              hint: "The exact date the certificate expires.",
+            },
           ]}
           emptyForm={{
             course: "",
@@ -912,6 +922,7 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
             ldType: "",
             conductedBy: "",
             certStatus: "on-file",
+            expiresOn: "",
           }}
           columns={[
             { key: "course", label: "Training / Course" },
@@ -924,7 +935,7 @@ export default function PdsDetailsForm({ employee, readOnly = false }: Props) {
           onAdd={(data) => addTraining(employee.id, data)}
           onUpdate={(recordId, patch) => updateTraining(employee.id, recordId, patch)}
           archive
-          onDelete={(recordId) => archiveTraining(employee.id, recordId)}
+          onDelete={canArchiveTraining ? (recordId) => archiveTraining(employee.id, recordId) : undefined}
           readOnly={readOnly}
         />
       </Card>

@@ -16,6 +16,7 @@ import { downloadHref } from "@/shared/lib/downloadUrl";
 import type { DocumentRecord } from "@/shared/types";
 import InactiveRecordNotice, { isRecordInactive } from "@/features/employees/components/InactiveRecordNotice";
 import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
+import CertificateStatus from "@/features/employees/components/CertificateStatus";
 import RecordManager from "@/features/employees/components/RecordManager";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
 
@@ -92,6 +93,8 @@ export default function Faculty201File() {
     addWorkExperience,
     updateWorkExperience,
     archiveWorkExperience,
+    addTraining,
+    updateTraining,
   } = useApp();
   const [viewDoc, setViewDoc] = useState<DocumentRecord | null>(null);
   if (!ready) return null;
@@ -275,20 +278,65 @@ export default function Faculty201File() {
           {
             key: "training",
             label: "Training",
-            content: readOnlyTable(
-              currentEmployee.training,
-              [
-                { key: "course", label: "Training / Course" },
-                { key: "provider", label: "Provider" },
-                { key: "completed", label: "Completed" },
-                {
-                  key: "certStatus",
-                  label: "Certificate",
-                  render: (t) =>
-                    t.certStatus === "on-file" ? <Tag kind="ok">On file</Tag> : <Tag kind="warn">Expiring soon</Tag>,
-                },
-              ],
-              "No training records on file yet.",
+            content: (
+              <RecordManager
+                readOnly={inactive}
+                items={currentEmployee.training}
+                typeLabel="training record"
+                addButtonLabel="Add Training"
+                emptyMessage="No training records on file yet."
+                employeeName={currentEmployee.displayName}
+                itemLabel={(t) => t.course}
+                fields={[
+                  { key: "course", label: "Course / training title", required: true },
+                  { key: "provider", label: "Provider" },
+                  { key: "fromDate", label: "From", type: "date" },
+                  { key: "completed", label: "To / Date completed", type: "date" },
+                  { key: "hours", label: "Number of hours" },
+                  { key: "ldType", label: "Type of L&D", hint: "Managerial, Supervisory, Technical, etc." },
+                  { key: "conductedBy", label: "Conducted / Sponsored by" },
+                  {
+                    key: "certStatus",
+                    label: "Certificate status",
+                    type: "select",
+                    options: [
+                      { value: "on-file", label: "On file" },
+                      { value: "expiring", label: "Expiring soon" },
+                    ],
+                  },
+                  {
+                    key: "expiresOn",
+                    label: "Expiry date",
+                    type: "date",
+                    required: true,
+                    showWhen: (f) => f.certStatus === "expiring",
+                    hint: "The exact date the certificate expires.",
+                  },
+                ]}
+                emptyForm={{
+                  course: "",
+                  provider: "",
+                  fromDate: "",
+                  completed: "",
+                  hours: "",
+                  ldType: "",
+                  conductedBy: "",
+                  certStatus: "on-file",
+                  expiresOn: "",
+                }}
+                columns={[
+                  { key: "course", label: "Training / Course" },
+                  { key: "provider", label: "Provider" },
+                  { key: "completed", label: "Completed" },
+                  {
+                    key: "certStatus",
+                    label: "Certificate",
+                    render: (t) => <CertificateStatus training={t} />,
+                  },
+                ]}
+                onAdd={(data) => addTraining(currentEmployee.id, data)}
+                onUpdate={(recordId, patch) => updateTraining(currentEmployee.id, recordId, patch)}
+              />
             ),
           },
           {
@@ -385,7 +433,7 @@ export default function Faculty201File() {
           {
             key: "pds",
             label: "PDS Details",
-            content: <PdsDetailsForm employee={currentEmployee} readOnly={inactive} />,
+            content: <PdsDetailsForm employee={currentEmployee} readOnly={inactive} canArchiveTraining={false} />,
           },
           {
             key: "benefits",
