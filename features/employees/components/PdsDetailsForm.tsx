@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Plus, Trash2, Pencil, X, FileDown, Upload } from "lucide-react";
+import { Plus, Trash2, Pencil, X, FileDown, Upload, Printer } from "lucide-react";
 import { Card, Button, Field, inputCls } from "@/shared/components/ui";
 import RecordManager from "@/features/employees/components/RecordManager";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { emptyPdsAddress, emptyPdsDetails } from "@/shared/types";
 import { exportPds, parsePdsImportText } from "@/shared/lib/pds";
+import { exportPdsWorkbook } from "@/shared/lib/pdsWorkbook";
+import { PDS_COUNTRIES } from "@/shared/lib/pdsCountries";
 import { toInputDate, fromInputDate, toInputDateDMY, fromInputDateDMY } from "@/shared/lib/dateFormat";
 import type { Employee, PdsAddress, PdsChild, PdsDetails } from "@/shared/types";
 
@@ -251,9 +253,19 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
     setEditing(false);
   }
 
-  function handleExport() {
+  /** Downloads the PDS as the official CS Form 212 (Revised 2026) Excel file — same layout as the form. */
+  async function handleExport() {
+    try {
+      showToast("Preparing the Personal Data Sheet…");
+      await exportPdsWorkbook(employee);
+    } catch {
+      showToast("Could not export the Personal Data Sheet. Please try again.");
+    }
+  }
+
+  function handlePrint() {
     exportPds(employee);
-    showToast("Opening the Personal Data Sheet for export…");
+    showToast("Opening the Personal Data Sheet for printing…");
   }
 
   function handleImportClick() {
@@ -294,7 +306,11 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
       <div className="flex justify-end gap-2 flex-wrap">
         <Button type="button" variant="secondary" sm onClick={handleExport}>
           <FileDown size={14} />
-          Export PDS
+          Export PDS (.xlsx)
+        </Button>
+        <Button type="button" variant="secondary" sm onClick={handlePrint}>
+          <Printer size={14} />
+          Print PDS
         </Button>
         {!readOnly && !editing && (
           <>
@@ -453,12 +469,22 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
               </select>
             </Field>
             <Field label="Dual Citizenship — Country" hint="Please indicate country">
-              <input
+              <select
                 disabled={d}
                 className={inputCls}
                 value={form.dualCitizenshipCountry || ""}
                 onChange={(e) => set("dualCitizenshipCountry", e.target.value || null)}
-              />
+              >
+                <option value="">—</option>
+                {PDS_COUNTRIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                {form.dualCitizenshipCountry && !PDS_COUNTRIES.includes(form.dualCitizenshipCountry) && (
+                  <option value={form.dualCitizenshipCountry}>{form.dualCitizenshipCountry}</option>
+                )}
+              </select>
             </Field>
           </div>
 

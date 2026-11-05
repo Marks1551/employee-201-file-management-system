@@ -29,6 +29,10 @@ and **MySQL**. Uploaded files (documents, photos, chat attachments) are stored i
 - **PRC** and **NBI Clearance** carry an **expiry date**: it is entered on upload (or by faculty when they submit), shown in the documents tables, exports and reports, editable by HR after a renewal, and raises an _expiring soon_ / _expired_ notification (60-day warning window) for HR and the faculty member
 - Add or remove required document types for all employees
 - Search records, publish announcements, chat with faculty
+- **Export PDS (.xlsx)** downloads the employee's Personal Data Sheet as the official **CS Form 212 (Revised 2026)** Excel form —
+  the bundled template (`public/templates/CS_Form_212_Revised_2026_PDS.xlsx`) is filled in, so the layout, checkboxes and
+  continuation sheets (C5–C11) are exactly the form's. To adopt a newer revision, replace that file and update the cell map in
+  `shared/lib/pdsWorkbook.ts`
 - Generate Excel reports (Employee List, Document Status) and export or print an
   individual employee's file
 

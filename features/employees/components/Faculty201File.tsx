@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { FileDown, Eye, Download } from "lucide-react";
+import { FileDown, Eye, Download, Printer } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
 import Tabs from "@/shared/components/Tabs";
 import { Card, Tag, Avatar, Button } from "@/shared/components/ui";
 import { TableWrap, Th, Td } from "@/shared/components/Table";
 import { useApp } from "@/shared/context/AppContext";
+import { useToast } from "@/shared/context/ToastContext";
 import { exportPds } from "@/shared/lib/pds";
+import { exportPdsWorkbook } from "@/shared/lib/pdsWorkbook";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import Modal from "@/shared/components/Modal";
 import SkeletonImage, { SkeletonFrame } from "@/shared/components/SkeletonImage";
@@ -85,6 +87,7 @@ function readOnlyTable<T extends { id: string }>(items: T[], columns: ReadOnlyCo
 }
 
 export default function Faculty201File() {
+  const showToast = useToast();
   const {
     currentEmployee,
     ready,
@@ -129,9 +132,20 @@ export default function Faculty201File() {
           </Tag>
         )}
         {pendingCount > 0 && <Tag kind="warn">{pendingCount} awaiting HR review</Tag>}
-        <Button variant="secondary" onClick={() => exportPds(currentEmployee)}>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            exportPdsWorkbook(currentEmployee).catch(() =>
+              showToast("Could not export the Personal Data Sheet. Please try again."),
+            )
+          }
+        >
           <FileDown size={18} />
-          Export PDS
+          Export PDS (.xlsx)
+        </Button>
+        <Button variant="secondary" onClick={() => exportPds(currentEmployee)}>
+          <Printer size={18} />
+          Print PDS
         </Button>
       </Card>
 
