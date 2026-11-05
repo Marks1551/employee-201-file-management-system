@@ -287,6 +287,24 @@ CREATE TABLE IF NOT EXISTS removed_document_requirements (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------
+-- departments: extra departments/colleges HR adds on top of the built-in list
+-- (e.g. when the school opens a new course). Also created automatically by the app.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS departments (
+  id          VARCHAR(64)  PRIMARY KEY,
+  name        VARCHAR(120) NOT NULL UNIQUE,
+  created_by  VARCHAR(150),
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Built-in departments that HR has chosen to remove
+CREATE TABLE IF NOT EXISTS removed_departments (
+  name        VARCHAR(120) PRIMARY KEY,
+  removed_by  VARCHAR(150),
+  removed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------
 -- notifications: persisted alerts (missing documents, expiring certifications),
 -- kept in sync automatically whenever documents/trainings change
 -- ---------------------------------------------------------------------------

@@ -14,7 +14,8 @@ import PdsDetailsForm from "@/features/employees/components/PdsDetailsForm";
 import GovernmentBenefitsForm from "@/features/employees/components/GovernmentBenefitsForm";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
-import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared/lib/roles";
+import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES } from "@/shared/lib/roles";
+import DepartmentSelect from "@/shared/components/DepartmentSelect";
 import SkeletonImage, { SkeletonFrame } from "@/shared/components/SkeletonImage";
 import { downloadHref } from "@/shared/lib/downloadUrl";
 import { exportEmployeeProfile } from "@/shared/lib/employeeExport";
@@ -908,20 +909,10 @@ export default function HREmployeeFile() {
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Department">
-                <select
-                  className={inputCls}
+                <DepartmentSelect
                   value={form.department || ""}
-                  onChange={(e) => setForm({ ...form, department: e.target.value })}
-                >
-                  {form.department && !DEPARTMENTS.includes(form.department as (typeof DEPARTMENTS)[number]) && (
-                    <option value={form.department}>{form.department}</option>
-                  )}
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(department) => setForm({ ...form, department })}
+                />
               </Field>
               <Field label="Position">
                 <input

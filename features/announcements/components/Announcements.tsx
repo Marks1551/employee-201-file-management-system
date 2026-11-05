@@ -5,12 +5,13 @@ import { Megaphone, Send, Trash2 } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { Button, Card, Field, inputCls, Tag } from "@/shared/components/ui";
 import { useToast } from "@/shared/context/ToastContext";
-import { DEPARTMENTS } from "@/shared/lib/roles";
+import { useDepartments } from "@/shared/lib/useDepartments";
 import type { Announcement } from "@/features/announcements/server/service";
 
 /** HR: write and manage announcements. Faculty: read the ones addressed to them. */
 export default function Announcements({ role }: { role: "hr" | "faculty" }) {
   const showToast = useToast();
+  const { departments } = useDepartments();
   const isHr = role === "hr";
   const [items, setItems] = useState<Announcement[] | null>(null);
   const [title, setTitle] = useState("");
@@ -105,7 +106,7 @@ export default function Announcements({ role }: { role: "hr" | "faculty" }) {
                 onChange={(e) => setAudience(e.target.value)}
               >
                 <option value="all">All employees</option>
-                {DEPARTMENTS.map((d) => (
+                {departments.map((d) => (
                   <option key={d} value={d}>
                     {d} only
                   </option>

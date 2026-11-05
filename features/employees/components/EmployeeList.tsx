@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Search, Camera, X, Upload, FileCheck2, Printer } from "lucide-react";
+import { Plus, Search, Camera, X, Upload, FileCheck2, Printer, Building2 } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import { Button, Field, inputCls, Tag, Avatar } from "@/shared/components/ui";
 import { TableWrap, Th, Td, CellName, CellSub } from "@/shared/components/Table";
@@ -10,6 +10,9 @@ import Pagination from "@/shared/components/Pagination";
 import Modal from "@/shared/components/Modal";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
+import DepartmentSelect from "@/shared/components/DepartmentSelect";
+import ManageDepartmentsModal from "@/shared/components/ManageDepartmentsModal";
+import { useDepartments } from "@/shared/lib/useDepartments";
 import { usePagination } from "@/shared/lib/usePagination";
 import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES, DEPARTMENTS } from "@/shared/lib/roles";
 import { parsePdsImportText } from "@/shared/lib/pds";
@@ -47,6 +50,8 @@ export default function HREmployees() {
   const [dept, setDept] = useState("All departments");
   const [statusFilter, setStatusFilter] = useState("active");
   const [addOpen, setAddOpen] = useState(false);
+  const [deptOpen, setDeptOpen] = useState(false);
+  const { departments: deptNames, details: deptDetails, addDepartment, removeDepartment } = useDepartments();
   const [form, setForm] = useState(emptyForm);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -73,7 +78,14 @@ export default function HREmployees() {
     return () => URL.revokeObjectURL(url);
   }, [photoFile]);
 
-  const departments = useMemo(() => ["All departments", ...new Set(employees.map((e) => e.department))], [employees]);
+  // Every department (including ones with no employees yet), plus any legacy value still on a record.
+  const departments = useMemo(
+    () => [
+      "All departments",
+      ...new Set([...deptNames, ...employees.map((e) => e.department).filter((d): d is string => !!d)]),
+    ],
+    [deptNames, employees],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -252,6 +264,10 @@ export default function HREmployees() {
             <Printer size={18} />
             {dept === "All departments" ? "Print Records" : `Print ${dept}`}
           </Button>
+          <Button variant="secondary" onClick={() => setDeptOpen(true)}>
+            <Building2 size={18} />
+            Manage Departments
+          </Button>
           <Button variant="gold" onClick={() => setAddOpen(true)}>
             <Plus size={18} />
             Add Employee
@@ -368,6 +384,18 @@ export default function HREmployees() {
         startIndex={startIndex}
         endIndex={endIndex}
         itemLabel="employees"
+      />
+
+      <ManageDepartmentsModal
+        open={deptOpen}
+        onClose={() => setDeptOpen(false)}
+        details={deptDetails}
+        onAdd={addDepartment}
+        onRemove={async (name) => {
+          const result = await removeDepartment(name);
+          if (result.ok && dept === name) setDept("All departments");
+          return result;
+        }}
       />
 
       <Modal open={addOpen} onClose={closeAdd} title="Add employee record" wide>
@@ -499,17 +527,7 @@ export default function HREmployees() {
               />
             </Field>
             <Field label="Department">
-              <select
-                className={inputCls}
-                value={form.department}
-                onChange={(e) => setForm({ ...form, department: e.target.value })}
-              >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              <DepartmentSelect value={form.department} onChange={(department) => setForm({ ...form, department })} />
             </Field>
             <Field label="Position">
               <input
