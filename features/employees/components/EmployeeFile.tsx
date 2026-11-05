@@ -674,16 +674,35 @@ export default function HREmployeeFile() {
                     type: "select",
                     options: ["Elementary", "Secondary", "Vocational / Trade", "College", "Graduate Studies"],
                   },
-                  { key: "schoolName", label: "School / institution", required: true },
-                  { key: "degree", label: "Degree / course", hint: "e.g. BS Computer Science" },
+                  { key: "schoolName", label: "Name of school (write in full)", required: true },
+                  {
+                    key: "degree",
+                    label: "Basic education / degree / course (write in full)",
+                    hint: "e.g. BS Computer Science",
+                  },
+                  { key: "periodFrom", label: "Period of attendance — From (yyyy)", hint: "e.g. 2011" },
+                  { key: "periodTo", label: "Period of attendance — To (yyyy)", hint: "e.g. 2015" },
+                  { key: "highestLevelUnits", label: "Highest level / units earned (if not graduated)" },
                   { key: "yearGraduated", label: "Year graduated", hint: "e.g. 2015" },
-                  { key: "honors", label: "Honors / awards", hint: "e.g. Cum Laude (optional)" },
+                  { key: "honors", label: "Scholarship / academic honors received", hint: "e.g. Cum Laude (optional)" },
                 ]}
-                emptyForm={{ level: "College", schoolName: "", degree: "", yearGraduated: "", honors: "" }}
+                emptyForm={{
+                  level: "College",
+                  schoolName: "",
+                  degree: "",
+                  periodFrom: "",
+                  periodTo: "",
+                  highestLevelUnits: "",
+                  yearGraduated: "",
+                  honors: "",
+                }}
                 columns={[
                   { key: "level", label: "Level" },
                   { key: "schoolName", label: "School" },
                   { key: "degree", label: "Degree / Course" },
+                  { key: "periodFrom", label: "From" },
+                  { key: "periodTo", label: "To" },
+                  { key: "highestLevelUnits", label: "Highest Level / Units" },
                   { key: "yearGraduated", label: "Year Graduated" },
                   { key: "honors", label: "Honors" },
                 ]}
@@ -710,6 +729,12 @@ export default function HREmployeeFile() {
                   { key: "position", label: "Position" },
                   { key: "fromDate", label: "From", type: "date" },
                   { key: "toDate", label: "To", type: "date", hint: "Leave blank if current" },
+                  { key: "monthlySalary", label: "Monthly salary" },
+                  {
+                    key: "salaryGrade",
+                    label: "Salary / job / pay grade & step increment",
+                    hint: 'Format "00-0" (if applicable)',
+                  },
                   {
                     key: "statusOfAppointment",
                     label: "Status of Appointment",
@@ -737,6 +762,8 @@ export default function HREmployeeFile() {
                   position: "",
                   fromDate: "",
                   toDate: "",
+                  monthlySalary: "",
+                  salaryGrade: "",
                   statusOfAppointment: "",
                   govtService: "",
                   description: "",
@@ -746,6 +773,8 @@ export default function HREmployeeFile() {
                   { key: "position", label: "Position" },
                   { key: "fromDate", label: "From" },
                   { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
+                  { key: "monthlySalary", label: "Monthly Salary" },
+                  { key: "salaryGrade", label: "Pay Grade & Step" },
                 ]}
                 onAdd={(data) => addWorkExperience(employee.id, data)}
                 onUpdate={(recordId, patch) => updateWorkExperience(employee.id, recordId, patch)}

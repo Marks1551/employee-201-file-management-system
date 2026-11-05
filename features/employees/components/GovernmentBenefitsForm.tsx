@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Pencil, X } from 'lucide-react';
-import { Card, Button, Field, inputCls } from '@/shared/components/ui';
-import { useApp } from '@/shared/context/AppContext';
-import { useToast } from '@/shared/context/ToastContext';
-import { emptyPdsDetails } from '@/shared/types';
-import type { Employee, PdsDetails } from '@/shared/types';
+import { useEffect, useState } from "react";
+import { Pencil, X } from "lucide-react";
+import { Card, Button, Field, inputCls } from "@/shared/components/ui";
+import { useApp } from "@/shared/context/AppContext";
+import { useToast } from "@/shared/context/ToastContext";
+import { emptyPdsDetails } from "@/shared/types";
+import type { Employee, PdsDetails } from "@/shared/types";
 
 interface Props {
   employee: Employee;
@@ -15,7 +15,7 @@ interface Props {
 
 type BenefitsFields = Pick<
   PdsDetails,
-  'gsisUmidNo' | 'pagibigNo' | 'philhealthNo' | 'philsysNumber' | 'tinNo' | 'agencyEmployeeNo'
+  "gsisUmidNo" | "pagibigNo" | "philhealthNo" | "philsysNumber" | "tinNo" | "agencyEmployeeNo"
 >;
 
 function pickBenefits(pds: Partial<PdsDetails>): BenefitsFields {
@@ -66,7 +66,7 @@ export default function GovernmentBenefitsForm({ employee, readOnly = false }: P
     await updateEmployee(employee.id, { pds: { ...employee.pds, ...form } });
     setSaving(false);
     setEditing(false);
-    showToast('Government benefits saved.');
+    showToast("Government benefits saved.");
   }
 
   const d = readOnly || !editing;
@@ -87,7 +87,7 @@ export default function GovernmentBenefitsForm({ employee, readOnly = false }: P
                 Cancel
               </Button>
               <Button type="button" sm onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? "Saving…" : "Save"}
               </Button>
             </>
           )}
@@ -95,14 +95,58 @@ export default function GovernmentBenefitsForm({ employee, readOnly = false }: P
       )}
 
       <Card>
-        <p className="text-[0.78rem] font-bold uppercase tracking-wide text-ink-faint mb-3 mt-0">Government Membership IDs</p>
+        <p className="text-[0.78rem] font-bold uppercase tracking-wide text-ink-faint mb-3 mt-0">
+          Government Membership IDs
+        </p>
         <div className="grid gap-4 md:grid-cols-3">
-          <Field label="GSIS / UMID ID No."><input disabled={d} className={inputCls} value={form.gsisUmidNo || ''} onChange={(e) => set('gsisUmidNo', e.target.value || null)} /></Field>
-          <Field label="Pag-IBIG ID No."><input disabled={d} className={inputCls} value={form.pagibigNo || ''} onChange={(e) => set('pagibigNo', e.target.value || null)} /></Field>
-          <Field label="PhilHealth No."><input disabled={d} className={inputCls} value={form.philhealthNo || ''} onChange={(e) => set('philhealthNo', e.target.value || null)} /></Field>
-          <Field label="PhilSys Number (PSN)"><input disabled={d} className={inputCls} value={form.philsysNumber || ''} onChange={(e) => set('philsysNumber', e.target.value || null)} /></Field>
-          <Field label="TIN No."><input disabled={d} className={inputCls} value={form.tinNo || ''} onChange={(e) => set('tinNo', e.target.value || null)} /></Field>
-          <Field label="Agency Employee No."><input disabled={d} className={inputCls} value={form.agencyEmployeeNo || ''} onChange={(e) => set('agencyEmployeeNo', e.target.value || null)} /></Field>
+          <Field label="UMID ID No.">
+            <input
+              disabled={d}
+              className={inputCls}
+              value={form.gsisUmidNo || ""}
+              onChange={(e) => set("gsisUmidNo", e.target.value || null)}
+            />
+          </Field>
+          <Field label="Pag-IBIG ID No.">
+            <input
+              disabled={d}
+              className={inputCls}
+              value={form.pagibigNo || ""}
+              onChange={(e) => set("pagibigNo", e.target.value || null)}
+            />
+          </Field>
+          <Field label="PhilHealth No.">
+            <input
+              disabled={d}
+              className={inputCls}
+              value={form.philhealthNo || ""}
+              onChange={(e) => set("philhealthNo", e.target.value || null)}
+            />
+          </Field>
+          <Field label="PhilSys Card Number (PCN)">
+            <input
+              disabled={d}
+              className={inputCls}
+              value={form.philsysNumber || ""}
+              onChange={(e) => set("philsysNumber", e.target.value || null)}
+            />
+          </Field>
+          <Field label="TIN No.">
+            <input
+              disabled={d}
+              className={inputCls}
+              value={form.tinNo || ""}
+              onChange={(e) => set("tinNo", e.target.value || null)}
+            />
+          </Field>
+          <Field label="Agency Employee No.">
+            <input
+              disabled={d}
+              className={inputCls}
+              value={form.agencyEmployeeNo || ""}
+              onChange={(e) => set("agencyEmployeeNo", e.target.value || null)}
+            />
+          </Field>
         </div>
         <p className="text-[0.8rem] text-ink-faint mt-3 mb-0">
           These numbers are shared with Section I of the PDS Details tab — updating them here updates them there too.

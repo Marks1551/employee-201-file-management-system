@@ -315,10 +315,10 @@ async function buildEmployeeSheet(wb: ExcelJS.Workbook, employee: Employee, shee
   sectionBar(ws, row, "Government Membership IDs");
   row += 1;
   const govFields: [string, string | number | null | undefined][] = [
-    ["GSIS / UMID ID No.", p.gsisUmidNo],
+    ["UMID ID No.", p.gsisUmidNo],
     ["Pag-IBIG ID No.", p.pagibigNo],
     ["PhilHealth No.", p.philhealthNo],
-    ["PhilSys Number (PSN)", p.philsysNumber],
+    ["PhilSys Card Number (PCN)", p.philsysNumber],
     ["TIN No.", p.tinNo],
     ["Agency Employee No.", p.agencyEmployeeNo],
   ];
@@ -346,20 +346,40 @@ async function buildEmployeeSheet(wb: ExcelJS.Workbook, employee: Employee, shee
 
   table(
     "Education",
-    ["Level", "School / Institution", "Degree / Course", "Year Graduated", "Honors"],
-    employee.education.map((e) => [e.level || "", e.schoolName, e.degree || "", e.yearGraduated || "", e.honors || ""]),
+    [
+      "Level",
+      "School / Institution",
+      "Degree / Course",
+      "From",
+      "To",
+      "Highest Level / Units",
+      "Year Graduated",
+      "Honors",
+    ],
+    employee.education.map((e) => [
+      e.level || "",
+      e.schoolName,
+      e.degree || "",
+      e.periodFrom || "",
+      e.periodTo || "",
+      e.highestLevelUnits || "",
+      e.yearGraduated || "",
+      e.honors || "",
+    ]),
     "No education records on file.",
   );
   row += 1;
 
   table(
     "Work Experience",
-    ["Company / Employer", "Position", "From", "To", "Status of Appointment"],
+    ["Company / Employer", "Position", "From", "To", "Monthly Salary", "Pay Grade & Step", "Status of Appointment"],
     employee.workExperience.map((w) => [
       w.company,
       w.position || "",
       w.fromDate || "",
       w.toDate || "Present",
+      w.monthlySalary || "",
+      w.salaryGrade || "",
       w.statusOfAppointment || "",
     ]),
     "No work experience records on file.",

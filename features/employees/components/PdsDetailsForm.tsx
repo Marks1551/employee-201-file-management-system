@@ -11,6 +11,9 @@ import { exportPds, parsePdsImportText } from "@/shared/lib/pds";
 import { toInputDate, fromInputDate, toInputDateDMY, fromInputDateDMY } from "@/shared/lib/dateFormat";
 import type { Employee, PdsAddress, PdsChild, PdsDetails } from "@/shared/types";
 
+/** Civil status choices on CS Form 212 (Revised 2026), item 6. */
+const CIVIL_STATUS_OPTIONS = ["Single", "Married", "Widowed", "Separated", "Others"];
+
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -142,7 +145,7 @@ interface Props {
 }
 
 /**
- * Section II–VIII of CS Form 212 (Revised 2025) — everything about the
+ * Section II–VIII of CS Form 212 (Revised 2026) — everything about the
  * employee that isn't already covered by the core Personal Info / Employment
  * / Documents / Training / Educational Background / Work Experience tabs.
  * Scalar fields save as one JSON patch; eligibility, voluntary work, and
@@ -367,25 +370,44 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
               />
             </Field>
             <Field label="5. Sex at Birth">
-              <input
+              <select
                 disabled={d}
                 className={inputCls}
                 value={form.sexAtBirth || ""}
                 onChange={(e) => set("sexAtBirth", e.target.value || null)}
-              />
+              >
+                <option value="">—</option>
+                {["Male", "Female"].map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+                {form.sexAtBirth && !["Male", "Female"].includes(form.sexAtBirth) && (
+                  <option value={form.sexAtBirth}>{form.sexAtBirth}</option>
+                )}
+              </select>
             </Field>
             <Field label="6. Civil Status">
-              <input
+              <select
                 disabled={d || !canEditCore}
                 className={inputCls}
-                placeholder="Single, Married, Widowed…"
                 value={core.civilStatus || ""}
                 onChange={(e) => setCore((c) => ({ ...c, civilStatus: e.target.value || null }))}
-              />
+              >
+                <option value="">—</option>
+                {CIVIL_STATUS_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+                {core.civilStatus && !CIVIL_STATUS_OPTIONS.includes(core.civilStatus) && (
+                  <option value={core.civilStatus}>{core.civilStatus}</option>
+                )}
+              </select>
             </Field>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-6">
             <Field label="7. Height (m)">
               <input
                 disabled={d}
@@ -418,7 +440,19 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
                 onChange={(e) => setCore((c) => ({ ...c, nationality: e.target.value || null }))}
               />
             </Field>
-            <Field label="Dual Citizenship Country" hint="If applicable">
+            <Field label="Dual Citizenship — by" hint="If applicable">
+              <select
+                disabled={d}
+                className={inputCls}
+                value={form.dualCitizenshipBasis || ""}
+                onChange={(e) => set("dualCitizenshipBasis", e.target.value || null)}
+              >
+                <option value="">—</option>
+                <option value="by birth">By birth</option>
+                <option value="by naturalization">By naturalization</option>
+              </select>
+            </Field>
+            <Field label="Dual Citizenship — Country" hint="Please indicate country">
               <input
                 disabled={d}
                 className={inputCls}
@@ -429,7 +463,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
-            <Field label="10. GSIS / UMID ID No.">
+            <Field label="10. UMID ID No.">
               <input
                 disabled={d}
                 className={inputCls}
@@ -453,7 +487,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
                 onChange={(e) => set("philhealthNo", e.target.value || null)}
               />
             </Field>
-            <Field label="13. PhilSys Number (PSN)">
+            <Field label="13. PhilSys Card Number (PCN)">
               <input
                 disabled={d}
                 className={inputCls}
@@ -734,16 +768,35 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
               type: "select",
               options: ["Elementary", "Secondary", "Vocational / Trade", "College", "Graduate Studies"],
             },
-            { key: "schoolName", label: "School / institution", required: true },
-            { key: "degree", label: "Degree / course", hint: "e.g. BS Computer Science" },
+            { key: "schoolName", label: "Name of school (write in full)", required: true },
+            {
+              key: "degree",
+              label: "Basic education / degree / course (write in full)",
+              hint: "e.g. BS Computer Science",
+            },
+            { key: "periodFrom", label: "Period of attendance — From (yyyy)", hint: "e.g. 2011" },
+            { key: "periodTo", label: "Period of attendance — To (yyyy)", hint: "e.g. 2015" },
+            { key: "highestLevelUnits", label: "Highest level / units earned (if not graduated)" },
             { key: "yearGraduated", label: "Year graduated", hint: "e.g. 2015" },
-            { key: "honors", label: "Honors / awards", hint: "e.g. Cum Laude (optional)" },
+            { key: "honors", label: "Scholarship / academic honors received", hint: "e.g. Cum Laude (optional)" },
           ]}
-          emptyForm={{ level: "College", schoolName: "", degree: "", yearGraduated: "", honors: "" }}
+          emptyForm={{
+            level: "College",
+            schoolName: "",
+            degree: "",
+            periodFrom: "",
+            periodTo: "",
+            highestLevelUnits: "",
+            yearGraduated: "",
+            honors: "",
+          }}
           columns={[
             { key: "level", label: "Level" },
             { key: "schoolName", label: "School" },
             { key: "degree", label: "Degree / Course" },
+            { key: "periodFrom", label: "From" },
+            { key: "periodTo", label: "To" },
+            { key: "highestLevelUnits", label: "Highest Level / Units" },
             { key: "yearGraduated", label: "Year Graduated" },
             { key: "honors", label: "Honors" },
           ]}
@@ -770,7 +823,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             { key: "examDate", label: "Date of Examination / Conferment", type: "date" },
             { key: "examPlace", label: "Place of Examination / Conferment" },
             { key: "licenseNumber", label: "License Number (if applicable)" },
-            { key: "licenseValidUntil", label: "License Valid Until", type: "date" },
+            { key: "licenseValidUntil", label: "License Date of Validity", type: "date" },
           ]}
           emptyForm={{ name: "", rating: "", examDate: "", examPlace: "", licenseNumber: "", licenseValidUntil: "" }}
           columns={[
@@ -800,6 +853,12 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             { key: "position", label: "Position" },
             { key: "fromDate", label: "From", type: "date" },
             { key: "toDate", label: "To", type: "date", hint: "Leave blank if current" },
+            { key: "monthlySalary", label: "Monthly salary" },
+            {
+              key: "salaryGrade",
+              label: "Salary / job / pay grade & step increment",
+              hint: 'Format "00-0" (if applicable)',
+            },
             {
               key: "statusOfAppointment",
               label: "Status of Appointment",
@@ -827,6 +886,8 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             position: "",
             fromDate: "",
             toDate: "",
+            monthlySalary: "",
+            salaryGrade: "",
             statusOfAppointment: "",
             govtService: "",
             description: "",
@@ -836,6 +897,8 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             { key: "position", label: "Position" },
             { key: "fromDate", label: "From" },
             { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
+            { key: "monthlySalary", label: "Monthly Salary" },
+            { key: "salaryGrade", label: "Pay Grade & Step" },
           ]}
           onAdd={(data) => addWorkExperience(employee.id, data)}
           onUpdate={(recordId, patch) => updateWorkExperience(employee.id, recordId, patch)}
@@ -846,39 +909,8 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
       </Card>
 
       <Card>
-        <p className={sectionTitle}>VI. Voluntary Work / Involvement</p>
-        <RecordManager
-          items={employee.voluntaryWork}
-          typeLabel="voluntary work record"
-          addButtonLabel="Add Voluntary Work"
-          emptyMessage="No voluntary work on file yet."
-          employeeName={employee.displayName}
-          itemLabel={(r) => r.organization}
-          fields={[
-            { key: "organization", label: "Name & address of organization", required: true },
-            { key: "fromDate", label: "From", type: "date" },
-            { key: "toDate", label: "To", type: "date" },
-            { key: "hours", label: "Number of hours" },
-            { key: "position", label: "Position / nature of work" },
-          ]}
-          emptyForm={{ organization: "", fromDate: "", toDate: "", hours: "", position: "" }}
-          columns={[
-            { key: "organization", label: "Organization" },
-            { key: "fromDate", label: "From" },
-            { key: "toDate", label: "To" },
-            { key: "hours", label: "Hours" },
-            { key: "position", label: "Position" },
-          ]}
-          onAdd={(data) => addVoluntaryWork(employee.id, data)}
-          onUpdate={(recordId, patch) => updateVoluntaryWork(employee.id, recordId, patch)}
-          onDelete={(recordId) => deleteVoluntaryWork(employee.id, recordId)}
-          readOnly={readOnly}
-        />
-      </Card>
-
-      <Card>
         <p className={sectionTitle}>
-          VII. Learning and Development (L&amp;D) Interventions / Training Programs Attended
+          VI. Learning and Development (L&amp;D) Interventions / Training Programs Attended
         </p>
         <RecordManager
           items={employee.training}
@@ -941,9 +973,42 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
       </Card>
 
       <Card>
+        <p className={sectionTitle}>
+          VII. Voluntary Work or Involvement in Civic / Non-Government / People / Voluntary Organization/s
+        </p>
+        <RecordManager
+          items={employee.voluntaryWork}
+          typeLabel="voluntary work record"
+          addButtonLabel="Add Voluntary Work"
+          emptyMessage="No voluntary work on file yet."
+          employeeName={employee.displayName}
+          itemLabel={(r) => r.organization}
+          fields={[
+            { key: "organization", label: "Name & address of organization", required: true },
+            { key: "fromDate", label: "From", type: "date" },
+            { key: "toDate", label: "To", type: "date" },
+            { key: "hours", label: "Number of hours" },
+            { key: "position", label: "Position / nature of work" },
+          ]}
+          emptyForm={{ organization: "", fromDate: "", toDate: "", hours: "", position: "" }}
+          columns={[
+            { key: "organization", label: "Organization" },
+            { key: "fromDate", label: "From" },
+            { key: "toDate", label: "To" },
+            { key: "hours", label: "Hours" },
+            { key: "position", label: "Position" },
+          ]}
+          onAdd={(data) => addVoluntaryWork(employee.id, data)}
+          onUpdate={(recordId, patch) => updateVoluntaryWork(employee.id, recordId, patch)}
+          onDelete={(recordId) => deleteVoluntaryWork(employee.id, recordId)}
+          readOnly={readOnly}
+        />
+      </Card>
+
+      <Card>
         <p className={sectionTitle}>VIII. Other Information</p>
         <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Special Skills and Hobbies">
+          <Field label="31. Special Skills and Hobbies">
             <textarea
               disabled={d}
               className={`${inputCls} min-h-[80px] py-2.5`}
@@ -951,7 +1016,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
               onChange={(e) => set("specialSkillsHobbies", e.target.value || null)}
             />
           </Field>
-          <Field label="Non-Academic Distinctions / Recognition">
+          <Field label="32. Non-Academic Distinctions / Recognition">
             <textarea
               disabled={d}
               className={`${inputCls} min-h-[80px] py-2.5`}
@@ -959,7 +1024,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
               onChange={(e) => set("nonAcademicDistinctions", e.target.value || null)}
             />
           </Field>
-          <Field label="Membership in Association / Organization">
+          <Field label="33. Membership in Association / Organization">
             <textarea
               disabled={d}
               className={`${inputCls} min-h-[80px] py-2.5`}
@@ -1067,7 +1132,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
 
         <YesNo
           disabled={d}
-          label="37. Ever separated from the service (resignation, retirement, dismissal, etc.)?"
+          label="37. Ever separated from the service (resignation, retirement, dropped from the rolls, dismissal, termination, end of term, finished contract or phased out) in the public or private sector?"
           value={form.q37Separated}
           onChange={(v) => set("q37Separated", v)}
         />
@@ -1135,7 +1200,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
 
         <YesNo
           disabled={d}
-          label="40a. Member of any indigenous group?"
+          label="40a. Are you a member of any indigenous group? (RA 8371)"
           value={form.q40aIndigenous}
           onChange={(v) => set("q40aIndigenous", v)}
         />
@@ -1152,7 +1217,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
 
         <YesNo
           disabled={d}
-          label="40b. Person with disability?"
+          label="40b. Are you a person with disability? (RA 7277, as amended)"
           value={form.q40bPwd}
           onChange={(v) => set("q40bPwd", v)}
         />
@@ -1169,7 +1234,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
 
         <YesNo
           disabled={d}
-          label="40c. Solo parent?"
+          label="40c. Are you a solo parent? (RA 11861)"
           value={form.q40cSoloParent}
           onChange={(v) => set("q40cSoloParent", v)}
         />

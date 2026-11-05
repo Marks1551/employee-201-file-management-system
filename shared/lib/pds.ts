@@ -1,5 +1,5 @@
 // Generates a printable Personal Data Sheet that follows the layout of CS
-// Form No. 212 (Revised 2025), populated from the employee's 201 file
+// Form No. 212 (Revised 2026), populated from the employee's 201 file
 // records (including their extended PDS Details). Opens a new tab with a
 // print-ready HTML document — the browser's own "Save as PDF" / print
 // dialog handles export, so no extra PDF dependency is needed.
@@ -74,14 +74,17 @@ function buildEducationRows(employee: Employee): string {
       <td class="lvl">${esc(level.toUpperCase())}</td>
       <td>${e ? esc(e.schoolName) : ""}</td>
       <td>${e ? esc(e.degree) : ""}</td>
-      <td>${e ? esc(e.yearGraduated) : ""}</td>
+      <td class="ctr">${e ? esc(e.periodFrom) : ""}</td>
+      <td class="ctr">${e ? esc(e.periodTo) : ""}</td>
+      <td>${e ? esc(e.highestLevelUnits) : ""}</td>
+      <td class="ctr">${e ? esc(e.yearGraduated) : ""}</td>
       <td>${e ? esc(e.honors) : ""}</td>
     </tr>`;
   });
   const extras = employee.education.filter((e) => !order.includes(e.level || ""));
   for (const e of extras) {
     rows.push(
-      `<tr><td class="lvl">${esc((e.level || "").toUpperCase())}</td><td>${esc(e.schoolName)}</td><td>${esc(e.degree)}</td><td>${esc(e.yearGraduated)}</td><td>${esc(e.honors)}</td></tr>`,
+      `<tr><td class="lvl">${esc((e.level || "").toUpperCase())}</td><td>${esc(e.schoolName)}</td><td>${esc(e.degree)}</td><td class="ctr">${esc(e.periodFrom)}</td><td class="ctr">${esc(e.periodTo)}</td><td>${esc(e.highestLevelUnits)}</td><td class="ctr">${esc(e.yearGraduated)}</td><td>${esc(e.honors)}</td></tr>`,
     );
   }
   return rows.join("");
@@ -106,7 +109,7 @@ function buildEligibilityRows(employee: Employee): string {
 
 function buildWorkExperienceRows(employee: Employee): string {
   if (employee.workExperience.length === 0) {
-    return `<tr><td colspan="6" class="empty">No prior work experience on file.</td></tr>`;
+    return `<tr><td colspan="8" class="empty">No prior work experience on file.</td></tr>`;
   }
   return employee.workExperience
     .map(
@@ -114,6 +117,8 @@ function buildWorkExperienceRows(employee: Employee): string {
       <td>${esc(w.fromDate)} – ${esc(w.toDate || "Present")}</td>
       <td>${esc(w.position)}</td>
       <td>${esc(w.company)}</td>
+      <td>${esc(w.monthlySalary)}</td>
+      <td class="ctr">${esc(w.salaryGrade)}</td>
       <td>${esc(w.statusOfAppointment)}</td>
       <td class="ctr">${w.govtService === "Y" ? "Y" : w.govtService === "N" ? "N" : ""}</td>
       <td>${esc(w.description)}</td>
@@ -250,13 +255,14 @@ function buildHtml(employee: Employee): string {
     ${field("8. Weight (kg)", p.weightKg, 1)}
     ${field("9. Blood Type", p.bloodType, 1)}
     ${field("16. Citizenship", employee.nationality, 1)}
-    ${field("Dual Citizenship Country", p.dualCitizenshipCountry, 1)}
+    ${field("Dual Citizenship (by birth / by naturalization)", p.dualCitizenshipBasis, 1)}
+    ${field("Dual Citizenship — Country", p.dualCitizenshipCountry, 1)}
   </div>
   <div class="row">
-    ${field("10. GSIS/UMID ID No.", p.gsisUmidNo, 1)}
+    ${field("10. UMID ID No.", p.gsisUmidNo, 1)}
     ${field("11. Pag-IBIG ID No.", p.pagibigNo, 1)}
     ${field("12. PhilHealth No.", p.philhealthNo, 1)}
-    ${field("13. PhilSys Number", p.philsysNumber, 1)}
+    ${field("13. PhilSys Card Number (PCN)", p.philsysNumber, 1)}
   </div>
   <div class="row">
     ${field("14. TIN No.", p.tinNo, 1)}
@@ -302,47 +308,47 @@ function buildHtml(employee: Employee): string {
 
   <div class="section-h">III. Educational Background</div>
   <table>
-    <thead><tr><th>26. Level</th><th>Name of School</th><th>Degree / Course</th><th>Year Graduated</th><th>Scholarship / Honors</th></tr></thead>
+    <thead><tr><th rowspan="2">26. Level</th><th rowspan="2">Name of School</th><th rowspan="2">Basic Education / Degree / Course</th><th colspan="2">Period of Attendance (yyyy)</th><th rowspan="2">Highest Level / Units Earned (if not graduated)</th><th rowspan="2">Year Graduated</th><th rowspan="2">Scholarship / Academic Honors Received</th></tr><tr><th>From</th><th>To</th></tr></thead>
     <tbody>${buildEducationRows(employee)}</tbody>
   </table>
 
 
   <div class="section-h">IV. Civil Service Eligibility</div>
   <table>
-    <thead><tr><th>27. Eligibility</th><th>Rating</th><th>Date of Exam / Conferment</th><th>Place of Exam / Conferment</th><th>License Number / Validity</th></tr></thead>
+    <thead><tr><th>27. Career Service / RA 1080 (Board/Bar) / Special Laws / CES / CSEE / Barangay Eligibility / Driver's License</th><th>Rating (if applicable)</th><th>Date of Examination / Conferment</th><th>Place of Examination / Conferment</th><th>License (if applicable): Number / Date of Validity</th></tr></thead>
     <tbody>${buildEligibilityRows(employee)}</tbody>
   </table>
 
   <div class="section-h">V. Work Experience</div>
   <p style="font-size:8.5px;color:#666;margin:0 0 6px;">(Include this Present Position. Gov't Service column indicates whether the position was in government.)</p>
   <table>
-    <thead><tr><th>Inclusive Dates</th><th>Position Title</th><th>Company / Agency</th><th>Status of Appointment</th><th>Gov't Service</th><th>Description</th></tr></thead>
+    <thead><tr><th>28. Inclusive Dates (dd/mm/yyyy)</th><th>Position Title</th><th>Department / Agency / Office / Company</th><th>Monthly Salary</th><th>Salary / Job / Pay Grade &amp; Step (00-0)</th><th>Status of Appointment</th><th>Gov't Service (Y/N)</th><th>Description of Duties</th></tr></thead>
     <tbody>${buildWorkExperienceRows(employee)}</tbody>
   </table>
 
 
-  <div class="section-h">VI. Voluntary Work or Involvement</div>
+  <div class="section-h">VI. Learning and Development (L&amp;D) Interventions / Training Programs Attended</div>
   <table>
-    <thead><tr><th>Name & Address of Organization</th><th>Inclusive Dates</th><th>Number of Hours</th><th>Position / Nature of Work</th></tr></thead>
-    <tbody>${buildVoluntaryWorkRows(employee)}</tbody>
+    <thead><tr><th>29. Title of Learning and Development Interventions / Training Programs</th><th>Inclusive Dates</th><th>Hours</th><th>Type of L&amp;D</th><th>Conducted / Sponsored By</th></tr></thead>
+    <tbody>${buildTrainingRows(employee)}</tbody>
   </table>
 
-  <div class="section-h">VII. Learning and Development (L&amp;D) Interventions / Training Programs Attended</div>
+  <div class="section-h">VII. Voluntary Work or Involvement in Civic / Non-Government / People / Voluntary Organization/s</div>
   <table>
-    <thead><tr><th>Title</th><th>Inclusive Dates</th><th>Hours</th><th>Type of L&amp;D</th><th>Conducted / Sponsored By</th></tr></thead>
-    <tbody>${buildTrainingRows(employee)}</tbody>
+    <thead><tr><th>30. Name &amp; Address of Organization</th><th>Inclusive Dates (dd/mm/yyyy)</th><th>Number of Hours</th><th>Position / Nature of Work</th></tr></thead>
+    <tbody>${buildVoluntaryWorkRows(employee)}</tbody>
   </table>
 
 
   <div class="section-h">VIII. Other Information</div>
   <div class="row">
-    ${field("33a. Special Skills and Hobbies", p.specialSkillsHobbies, 1)}
+    ${field("31. Special Skills and Hobbies", p.specialSkillsHobbies, 1)}
   </div>
   <div class="row">
-    ${field("33b. Non-Academic Distinctions / Recognition", p.nonAcademicDistinctions, 1)}
+    ${field("32. Non-Academic Distinctions / Recognition", p.nonAcademicDistinctions, 1)}
   </div>
   <div class="row">
-    ${field("33c. Membership in Association / Organization", p.orgMemberships, 1)}
+    ${field("33. Membership in Association / Organization", p.orgMemberships, 1)}
   </div>
 
   <div class="section-h">Declarations</div>
@@ -354,17 +360,17 @@ function buildHtml(employee: Employee): string {
     { label: "Status", value: p.q35bStatus },
   ])}
   ${yesNoLine("36. Convicted of any crime or violation of law, decree, ordinance or regulation?", p.q36Convicted, p.q36Details)}
-  ${yesNoLine("37. Separated from the service (resignation, retirement, dismissal, dropped, etc.)?", p.q37Separated, p.q37Details)}
+  ${yesNoLine("37. Separated from the service (resignation, retirement, dropped from the rolls, dismissal, termination, end of term, finished contract or phased out) in the public or private sector?", p.q37Separated, p.q37Details)}
   ${yesNoLine("38a. Ever been a candidate in a national or local election (except barangay election)?", p.q38aCandidate, p.q38aDetails)}
   ${yesNoLine("38b. Resigned from government service to campaign for a candidate/political party?", p.q38bResigned, p.q38bDetails)}
   ${yesNoLine("39. Acquired the status of an immigrant or permanent resident of another country?", p.q39Immigrant, null, [{ label: "Country", value: p.q39Country }])}
-  ${yesNoLine("40a. Member of any indigenous group?", p.q40aIndigenous, p.q40aDetails)}
-  ${yesNoLine("40b. Person with disability?", p.q40bPwd, null, [{ label: "ID No.", value: p.q40bIdNo }])}
-  ${yesNoLine("40c. Solo parent?", p.q40cSoloParent, null, [{ label: "ID No.", value: p.q40cIdNo }])}
+  ${yesNoLine("40a. Member of any indigenous group (RA 8371)?", p.q40aIndigenous, p.q40aDetails)}
+  ${yesNoLine("40b. Person with disability (RA 7277, as amended)?", p.q40bPwd, null, [{ label: "ID No.", value: p.q40bIdNo }])}
+  ${yesNoLine("40c. Solo parent (RA 11861)?", p.q40cSoloParent, null, [{ label: "ID No.", value: p.q40cIdNo }])}
 
-  <div class="section-h">41. References</div>
+  <div class="section-h">41. References (person not related by consanguinity or affinity to applicant / appointee)</div>
   <table>
-    <thead><tr><th>Name</th><th>Address</th><th>Contact No.</th></tr></thead>
+    <thead><tr><th>Name</th><th>Office / Residential Address</th><th>Contact No. and/or Email</th></tr></thead>
     <tbody>${buildReferenceRows(employee)}</tbody>
   </table>
 
@@ -377,11 +383,11 @@ function buildHtml(employee: Employee): string {
 
   <p style="font-size:9px; margin-top:18px;">I certify that the above information is true and correct to the best of my knowledge and belief.</p>
   <div class="sig-row">
-    <div class="sig-box"><div class="sig-line">${esc(signatureName)}<br/>Signature over Printed Name</div></div>
-    <div class="sig-box"><div class="sig-line">Date</div></div>
+    <div class="sig-box"><div class="sig-line">${esc(signatureName)}<br/>Signature over Printed Name (e-signature / digital certificate)</div></div>
+    <div class="sig-box"><div class="sig-line">Date Accomplished</div></div>
   </div>
 
-  <p class="page-footer">CS Form 212 (Revised 2025) — Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)} &nbsp;·&nbsp; Generated ${esc(generatedOn)}</p>
+  <p class="page-footer">CS Form 212 (Revised 2026) — Employee #${esc(employee.employeeNumber)} — ${esc(employee.displayName)} &nbsp;·&nbsp; Generated ${esc(generatedOn)}</p>
 </div>
 
 </body>
@@ -390,7 +396,7 @@ function buildHtml(employee: Employee): string {
 
 /**
  * Builds a print-ready Personal Data Sheet, laid out to follow CS Form
- * No. 212 (Revised 2025), from the employee's existing 201 file records
+ * No. 212 (Revised 2026), from the employee's existing 201 file records
  * (including PDS Details), and triggers the browser print dialog, letting
  * the user save it as a PDF. Prints via a hidden iframe rather than a new
  * tab so it can't be silently blocked by the browser's popup blocker.

@@ -65,6 +65,11 @@ export interface EducationRecord {
   level: string | null;
   schoolName: string;
   degree: string | null;
+  /** CS Form 212 (Revised 2026) item 26 — Period of Attendance (yyyy). */
+  periodFrom: string | null;
+  periodTo: string | null;
+  /** Highest level / units earned (if not graduated). */
+  highestLevelUnits: string | null;
   yearGraduated: string | null;
   honors: string | null;
 }
@@ -77,6 +82,10 @@ export interface WorkExperienceRecord {
   toDate: string | null;
   description: string | null;
   /** PDS Section V extras */
+  /** Monthly salary (item 28). */
+  monthlySalary: string | null;
+  /** Salary/job/pay grade & step increment, format "00-0" (item 28). */
+  salaryGrade: string | null;
   statusOfAppointment: string | null;
   govtService: "Y" | "N" | null;
 }
@@ -152,7 +161,7 @@ export function emptyPdsAddress(): PdsAddress {
   };
 }
 
-/** Additional CS Form No. 212 (Revised 2025) fields not covered by the core
+/** Additional CS Form No. 212 (Revised 2026) fields not covered by the core
  *  Employee columns — stored as one JSON blob on the employee row. Scalar
  *  fields only; repeatable sections (eligibility, voluntary work, references)
  *  are their own record lists on Employee, same pattern as education/training. */
@@ -168,12 +177,16 @@ export interface PdsDetails {
   heightM: string | null;
   weightKg: string | null;
   bloodType: string | null;
+  /** Item 10 — UMID ID No. (key kept as gsisUmidNo so existing records keep their value). */
   gsisUmidNo: string | null;
   pagibigNo: string | null;
   philhealthNo: string | null;
+  /** Item 13 — PhilSys Card Number (PCN). */
   philsysNumber: string | null;
   tinNo: string | null;
   agencyEmployeeNo: string | null;
+  /** Item 16 — if dual citizenship: "by birth" or "by naturalization", plus the other country. */
+  dualCitizenshipBasis: string | null;
   dualCitizenshipCountry: string | null;
   telephoneNo: string | null;
   mobileNo: string | null;
@@ -255,6 +268,7 @@ export function emptyPdsDetails(): PdsDetails {
     philsysNumber: null,
     tinNo: null,
     agencyEmployeeNo: null,
+    dualCitizenshipBasis: null,
     dualCitizenshipCountry: null,
     telephoneNo: null,
     mobileNo: null,
@@ -506,6 +520,10 @@ export interface EducationRow {
   level: string | null;
   school_name: string;
   degree: string | null;
+  /** Added with the 2026 PDS; may be missing on databases that haven't been migrated yet. */
+  period_from?: string | null;
+  period_to?: string | null;
+  highest_level_units?: string | null;
   year_graduated: string | null;
   honors: string | null;
 }
@@ -518,6 +536,9 @@ export interface WorkExperienceRow {
   from_date: string | null;
   to_date: string | null;
   description: string | null;
+  /** Added with the 2026 PDS; may be missing on databases that haven't been migrated yet. */
+  monthly_salary?: string | null;
+  salary_grade?: string | null;
   status_of_appointment: string | null;
   govt_service: "Y" | "N" | null;
 }

@@ -112,21 +112,33 @@ function buildHtml(employee: Employee): string {
 
   <div class="section-h">Government Membership IDs</div>
   <div class="grid">
-    ${field("GSIS / UMID ID No.", p.gsisUmidNo)}
+    ${field("UMID ID No.", p.gsisUmidNo)}
     ${field("Pag-IBIG ID No.", p.pagibigNo)}
     ${field("PhilHealth No.", p.philhealthNo)}
-    ${field("PhilSys Number (PSN)", p.philsysNumber)}
+    ${field("PhilSys Card Number (PCN)", p.philsysNumber)}
     ${field("TIN No.", p.tinNo)}
     ${field("Agency Employee No.", p.agencyEmployeeNo)}
   </div>
 
   <div class="section-h">Education</div>
   ${table(
-    ["Level", "School / Institution", "Degree / Course", "Year Graduated", "Honors"],
+    [
+      "Level",
+      "School / Institution",
+      "Degree / Course",
+      "From",
+      "To",
+      "Highest Level / Units",
+      "Year Graduated",
+      "Honors",
+    ],
     employee.education.map((e) => [
       esc(e.level),
       esc(e.schoolName),
       esc(e.degree),
+      esc(e.periodFrom),
+      esc(e.periodTo),
+      esc(e.highestLevelUnits),
       esc(e.yearGraduated),
       esc(e.honors),
     ]),
@@ -135,12 +147,14 @@ function buildHtml(employee: Employee): string {
 
   <div class="section-h">Work Experience</div>
   ${table(
-    ["Company / Employer", "Position", "From", "To", "Status of Appointment"],
+    ["Company / Employer", "Position", "From", "To", "Monthly Salary", "Pay Grade & Step", "Status of Appointment"],
     employee.workExperience.map((w) => [
       esc(w.company),
       esc(w.position),
       esc(w.fromDate),
       esc(w.toDate) || "Present",
+      esc(w.monthlySalary),
+      esc(w.salaryGrade),
       esc(w.statusOfAppointment),
     ]),
     "No work experience records on file.",

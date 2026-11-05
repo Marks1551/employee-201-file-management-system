@@ -77,6 +77,8 @@ const seedEmployees = [
         level: "College",
         schoolName: "Mindanao State University - IIT",
         degree: "BS Civil Engineering",
+        periodFrom: "2007",
+        periodTo: "2011",
         yearGraduated: "2011",
         honors: "",
       },
@@ -85,6 +87,9 @@ const seedEmployees = [
         level: "Graduate Studies",
         schoolName: "MSU - IIT",
         degree: "MS Civil Engineering (units earned)",
+        periodFrom: "2013",
+        periodTo: "2015",
+        highestLevelUnits: "24 units earned",
         yearGraduated: "",
         honors: "",
       },
@@ -97,6 +102,8 @@ const seedEmployees = [
         fromDate: "July 2011",
         toDate: "May 2019",
         description: "Structural design review and site inspection for commercial projects.",
+        monthlySalary: "28,000",
+        salaryGrade: "",
         statusOfAppointment: "Permanent",
         govtService: "N",
       },
@@ -661,6 +668,25 @@ async function main() {
     await conn.query("ALTER TABLE work_experience ADD COLUMN govt_service ENUM('Y','N') AFTER status_of_appointment");
   }
 
+  // Migration: CS Form 212 (Revised 2026) added period of attendance / highest level on
+  // Education and monthly salary / pay grade on Work Experience.
+  for (const [table, column, type] of [
+    ["education", "period_from", "VARCHAR(20)"],
+    ["education", "period_to", "VARCHAR(20)"],
+    ["education", "highest_level_units", "VARCHAR(150)"],
+    ["work_experience", "monthly_salary", "VARCHAR(40)"],
+    ["work_experience", "salary_grade", "VARCHAR(20)"],
+  ]) {
+    const [col] = await conn.query(
+      "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+      [dbName, table, column],
+    );
+    if (col.length === 0) {
+      console.log(`Migrating: adding ${column} column to ${table}...`);
+      await conn.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${type} NULL`);
+    }
+  }
+
   // Migration: databases created before records could be archived won't have
   // the archived_at column on the four archivable record tables yet.
   for (const table of ["trainings", "education", "work_experience", "performance_reviews"]) {
@@ -827,13 +853,16 @@ async function main() {
     }
     for (const ed of emp.education || []) {
       await conn.execute(
-        "INSERT INTO education (id, employee_id, level, school_name, degree, year_graduated, honors) VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO education (id, employee_id, level, school_name, degree, period_from, period_to, highest_level_units, year_graduated, honors) VALUES (?,?,?,?,?,?,?,?,?,?)",
         [
           `${emp.id}-${ed.id}`,
           emp.id,
           ed.level || null,
           ed.schoolName,
           ed.degree || null,
+          ed.periodFrom || null,
+          ed.periodTo || null,
+          ed.highestLevelUnits || null,
           ed.yearGraduated || null,
           ed.honors || null,
         ],
@@ -841,7 +870,7 @@ async function main() {
     }
     for (const w of emp.workExperience || []) {
       await conn.execute(
-        "INSERT INTO work_experience (id, employee_id, company, position, from_date, to_date, description, status_of_appointment, govt_service) VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO work_experience (id, employee_id, company, position, from_date, to_date, description, monthly_salary, salary_grade, status_of_appointment, govt_service) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         [
           `${emp.id}-${w.id}`,
           emp.id,
@@ -850,6 +879,8 @@ async function main() {
           w.fromDate || null,
           w.toDate || null,
           w.description || null,
+          w.monthlySalary || null,
+          w.salaryGrade || null,
           w.statusOfAppointment || null,
           w.govtService || null,
         ],

@@ -22,7 +22,7 @@ and **MySQL**. Uploaded files (documents, photos, chat attachments) are stored i
 
 - Create, edit, deactivate and delete employee records, including photo, employment
   status (Regular / Contractual with contract end date), department and PDS details
-- Manage each employee's PDS sections: education, work experience, civil service
+- Manage each employee's PDS sections (aligned with **CS Form No. 212, Revised 2026**): education, work experience, civil service
   eligibility, voluntary work, trainings (with certificates), references, performance
   reviews, attendance and government benefits
 - Upload documents directly, or **approve / reject** documents submitted by faculty
@@ -66,6 +66,11 @@ npm install
 npm run db:seed     # creates the database and tables, loads demo data
 npm run dev         # http://localhost:3000
 ```
+
+> **Upgrading an existing database to the Revised 2026 PDS?** The new Education columns
+> (period of attendance, highest level/units) and Work Experience columns (monthly salary,
+> pay grade & step) are added automatically the first time such a record is saved. To migrate
+> up front instead, run `db/add-pds-2026-columns.sql` once. Do **not** re-run `db:seed` on real data.
 
 > ⚠️ **`npm run db:seed` is destructive.** It applies `db/schema.sql`, drops
 > `webauthn_credentials`, **truncates every table** and reloads the demo data. It is handy

@@ -143,6 +143,9 @@ function mapEducationRow(row: EducationRow): EducationRecord {
     level: row.level,
     schoolName: row.school_name,
     degree: row.degree,
+    periodFrom: row.period_from || null,
+    periodTo: row.period_to || null,
+    highestLevelUnits: row.highest_level_units || null,
     yearGraduated: row.year_graduated,
     honors: row.honors,
   };
@@ -156,6 +159,8 @@ function mapWorkExperienceRow(row: WorkExperienceRow): WorkExperienceRecord {
     fromDate: row.from_date,
     toDate: row.to_date,
     description: row.description,
+    monthlySalary: row.monthly_salary || null,
+    salaryGrade: row.salary_grade || null,
     statusOfAppointment: row.status_of_appointment || null,
     govtService: row.govt_service || null,
   };
@@ -1013,11 +1018,43 @@ function makeRecordCrud<TInput extends Record<string, unknown>>(
 
 // ---------- educational background ----------
 
+/** CS Form 212 (Revised 2026) columns were added after the first release; create them on first
+ *  write so existing databases don't need a manual migration (db/add-pds-2026-columns.sql does
+ *  the same thing up front if you prefer). */
+let pds2026ColumnsReady: Promise<void> | null = null;
+function ensurePds2026Columns(): Promise<void> {
+  if (!pds2026ColumnsReady) {
+    pds2026ColumnsReady = (async () => {
+      const wanted: [string, string, string][] = [
+        ["education", "period_from", "VARCHAR(20)"],
+        ["education", "period_to", "VARCHAR(20)"],
+        ["education", "highest_level_units", "VARCHAR(150)"],
+        ["work_experience", "monthly_salary", "VARCHAR(40)"],
+        ["work_experience", "salary_grade", "VARCHAR(20)"],
+      ];
+      for (const [table, column, type] of wanted) {
+        const rows = await query<{ c: number }>(
+          "SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+          [table, column],
+        );
+        if (!Number(rows[0]?.c)) await execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type} NULL`);
+      }
+    })().catch((err) => {
+      pds2026ColumnsReady = null; // try again on the next request
+      throw err;
+    });
+  }
+  return pds2026ColumnsReady;
+}
+
 export interface EducationInput {
   [key: string]: unknown;
   level?: string | null;
   schoolName: string;
   degree?: string | null;
+  periodFrom?: string | null;
+  periodTo?: string | null;
+  highestLevelUnits?: string | null;
   yearGraduated?: string | null;
   honors?: string | null;
 }
@@ -1026,11 +1063,20 @@ const educationCrud = makeRecordCrud<EducationInput>("education", "edu", {
   level: "level",
   schoolName: "school_name",
   degree: "degree",
+  periodFrom: "period_from",
+  periodTo: "period_to",
+  highestLevelUnits: "highest_level_units",
   yearGraduated: "year_graduated",
   honors: "honors",
 });
-export const addEducation = educationCrud.add;
-export const updateEducation = educationCrud.update;
+export const addEducation: typeof educationCrud.add = async (...args) => {
+  await ensurePds2026Columns();
+  return educationCrud.add(...args);
+};
+export const updateEducation: typeof educationCrud.update = async (...args) => {
+  await ensurePds2026Columns();
+  return educationCrud.update(...args);
+};
 export const archiveEducation = educationCrud.archive;
 
 // ---------- work experience ----------
@@ -1042,6 +1088,8 @@ export interface WorkExperienceInput {
   fromDate?: string | null;
   toDate?: string | null;
   description?: string | null;
+  monthlySalary?: string | null;
+  salaryGrade?: string | null;
   statusOfAppointment?: string | null;
   govtService?: string | null;
 }
@@ -1052,11 +1100,19 @@ const workExperienceCrud = makeRecordCrud<WorkExperienceInput>("work_experience"
   fromDate: "from_date",
   toDate: "to_date",
   description: "description",
+  monthlySalary: "monthly_salary",
+  salaryGrade: "salary_grade",
   statusOfAppointment: "status_of_appointment",
   govtService: "govt_service",
 });
-export const addWorkExperience = workExperienceCrud.add;
-export const updateWorkExperience = workExperienceCrud.update;
+export const addWorkExperience: typeof workExperienceCrud.add = async (...args) => {
+  await ensurePds2026Columns();
+  return workExperienceCrud.add(...args);
+};
+export const updateWorkExperience: typeof workExperienceCrud.update = async (...args) => {
+  await ensurePds2026Columns();
+  return workExperienceCrud.update(...args);
+};
 export const archiveWorkExperience = workExperienceCrud.archive;
 
 // ---------- civil service eligibility ----------

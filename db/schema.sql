@@ -105,6 +105,10 @@ CREATE TABLE IF NOT EXISTS education (
   level           VARCHAR(60),
   school_name     VARCHAR(200) NOT NULL,
   degree          VARCHAR(200),
+  -- CS Form 212 (Revised 2026) item 26: period of attendance (yyyy) and highest level/units
+  period_from         VARCHAR(20),
+  period_to           VARCHAR(20),
+  highest_level_units VARCHAR(150),
   year_graduated  VARCHAR(20),
   honors          VARCHAR(150),
   archived_at     VARCHAR(60) NULL,
@@ -122,7 +126,9 @@ CREATE TABLE IF NOT EXISTS work_experience (
   from_date    VARCHAR(60),
   to_date      VARCHAR(60),
   description  VARCHAR(500),
-  -- PDS Section V (Work Experience) extras
+  -- PDS Section V (Work Experience) extras (CS Form 212 Revised 2026, item 28)
+  monthly_salary        VARCHAR(40),
+  salary_grade          VARCHAR(20),
   status_of_appointment VARCHAR(100),
   govt_service          ENUM('Y','N'),
   archived_at           VARCHAR(60) NULL,
@@ -145,7 +151,7 @@ CREATE TABLE IF NOT EXISTS civil_service_eligibility (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------
--- voluntary_work: PDS Section VI
+-- voluntary_work: PDS Section VII (Revised 2026 order: VI = L&D, VII = Voluntary Work)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS voluntary_work (
   id           VARCHAR(64)  PRIMARY KEY,
