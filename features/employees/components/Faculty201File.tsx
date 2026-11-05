@@ -1,5 +1,6 @@
 "use client";
 
+import { trainingHours } from "@/shared/lib/dateFormat";
 import { useState, type ReactNode } from "react";
 import { FileDown, Eye, Download, Printer } from "lucide-react";
 import Layout from "@/shared/components/Layout";
@@ -317,7 +318,12 @@ export default function Faculty201File() {
                   { key: "provider", label: "Provider" },
                   { key: "fromDate", label: "From", type: "date" },
                   { key: "completed", label: "To / Date completed", type: "date" },
-                  { key: "hours", label: "Number of hours" },
+                  {
+                    key: "hours",
+                    label: "Number of hours",
+                    hint: "Filled in automatically from the From and To dates (8 hours a day). You can change it.",
+                    autoFill: (f) => trainingHours(f.fromDate, f.completed),
+                  },
                   { key: "ldType", label: "Type of L&D", hint: "Managerial, Supervisory, Technical, etc." },
                   { key: "conductedBy", label: "Conducted / Sponsored by" },
                   {

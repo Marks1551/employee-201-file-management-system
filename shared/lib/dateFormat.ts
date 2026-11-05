@@ -52,3 +52,13 @@ export function fromInputDateDMY(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
+
+/** Training hours from the From / To dates: 8 hours per day, counting both dates (e.g. 3 days = "24").
+ *  Returns "" until both dates are valid and To is not before From. */
+export function trainingHours(from: unknown, to: unknown, hoursPerDay = 8): string {
+  const a = toInputDate(String(from ?? ""));
+  const b = toInputDate(String(to ?? ""));
+  if (!a || !b) return "";
+  const days = Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000) + 1;
+  return days >= 1 ? String(days * hoursPerDay) : "";
+}

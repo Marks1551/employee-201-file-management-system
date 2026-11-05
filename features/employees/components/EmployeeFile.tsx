@@ -26,7 +26,7 @@ import { exportEmployeeProfile } from "@/shared/lib/employeeExport";
 import { getNameParts, composeFullName, composeDisplayName, type NameParts } from "@/shared/lib/names";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import type { Employee, DocumentRecord, TrainingRecord } from "@/shared/types";
-import { toInputDate, fromInputDate } from "@/shared/lib/dateFormat";
+import { toInputDate, fromInputDate, trainingHours } from "@/shared/lib/dateFormat";
 
 export default function HREmployeeFile() {
   const { id } = useParams<{ id: string }>();
@@ -635,7 +635,12 @@ export default function HREmployeeFile() {
                   { key: "provider", label: "Provider" },
                   { key: "fromDate", label: "From", type: "date" },
                   { key: "completed", label: "To / Date completed", type: "date" },
-                  { key: "hours", label: "Number of hours" },
+                  {
+                    key: "hours",
+                    label: "Number of hours",
+                    hint: "Filled in automatically from the From and To dates (8 hours a day). You can change it.",
+                    autoFill: (f) => trainingHours(f.fromDate, f.completed),
+                  },
                   { key: "ldType", label: "Type of L&D", hint: "Managerial, Supervisory, Technical, etc." },
                   { key: "conductedBy", label: "Conducted / Sponsored by" },
                   {

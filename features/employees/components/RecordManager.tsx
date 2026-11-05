@@ -28,6 +28,12 @@ export interface RecordField {
   required?: boolean;
   /** When set, the field only shows (and only counts as required) while this returns true. */
   showWhen?: (form: Record<string, unknown>) => boolean;
+  /**
+   * Computes this field from the other fields (e.g. hours from the From / To dates). It fills in
+   * automatically while the field is empty or still holds the previous computed value; once the user
+   * types their own value it is left alone.
+   */
+  autoFill?: (form: Record<string, unknown>) => string;
 }
 
 export interface RecordColumn<T> {
@@ -113,6 +119,19 @@ export default function RecordManager<T extends RecordItem>({
   const [deleting, setDeleting] = useState(false);
   const { page, setPage, totalPages, pageItems, startIndex, endIndex } = usePagination(items, 8);
 
+  /** Updates one field, then recomputes any `autoFill` field that was blank or still auto-filled. */
+  function setField(key: string, value: unknown) {
+    setForm((prev) => {
+      const next: Record<string, unknown> = { ...prev, [key]: value };
+      for (const f of fields) {
+        if (!f.autoFill || f.key === key) continue;
+        const current = String(prev[f.key] ?? "").trim();
+        if (!current || current === f.autoFill(prev)) next[f.key] = f.autoFill(next);
+      }
+      return next;
+    });
+  }
+
   function openAdd() {
     setForm(emptyForm);
     setModal({ mode: "add" });
@@ -179,7 +198,7 @@ export default function RecordManager<T extends RecordItem>({
                   <select
                     className={inputCls}
                     value={(form[f.key] as string) ?? ""}
-                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    onChange={(e) => setField(f.key, e.target.value)}
                   >
                     {(f.options || []).map((o) => {
                       const opt = typeof o === "string" ? { value: o, label: o } : o;
@@ -194,14 +213,14 @@ export default function RecordManager<T extends RecordItem>({
                   <textarea
                     className={`${inputCls} min-h-[90px] py-2.5`}
                     value={(form[f.key] as string) ?? ""}
-                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    onChange={(e) => setField(f.key, e.target.value)}
                   />
                 ) : f.type === "date" ? (
                   <input
                     type="date"
                     className={inputCls}
                     value={toInputDate(form[f.key] as string)}
-                    onChange={(e) => setForm({ ...form, [f.key]: fromInputDate(e.target.value) })}
+                    onChange={(e) => setField(f.key, fromInputDate(e.target.value))}
                     required={f.required}
                   />
                 ) : (
@@ -209,7 +228,7 @@ export default function RecordManager<T extends RecordItem>({
                     type={f.type === "number" ? "number" : "text"}
                     className={inputCls}
                     value={(form[f.key] as string | number) ?? ""}
-                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    onChange={(e) => setField(f.key, e.target.value)}
                     required={f.required}
                   />
                 )}
@@ -409,7 +428,7 @@ export default function RecordManager<T extends RecordItem>({
                       <select
                         className={inputCls}
                         value={(form[f.key] as string) ?? ""}
-                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                        onChange={(e) => setField(f.key, e.target.value)}
                       >
                         {(f.options || []).map((o) => {
                           const opt = typeof o === "string" ? { value: o, label: o } : o;
@@ -424,14 +443,14 @@ export default function RecordManager<T extends RecordItem>({
                       <textarea
                         className={`${inputCls} min-h-[90px] py-2.5`}
                         value={(form[f.key] as string) ?? ""}
-                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                        onChange={(e) => setField(f.key, e.target.value)}
                       />
                     ) : f.type === "date" ? (
                       <input
                         type="date"
                         className={inputCls}
                         value={toInputDate(form[f.key] as string)}
-                        onChange={(e) => setForm({ ...form, [f.key]: fromInputDate(e.target.value) })}
+                        onChange={(e) => setField(f.key, fromInputDate(e.target.value))}
                         required={f.required}
                       />
                     ) : (
@@ -439,7 +458,7 @@ export default function RecordManager<T extends RecordItem>({
                         type={f.type === "number" ? "number" : "text"}
                         className={inputCls}
                         value={(form[f.key] as string | number) ?? ""}
-                        onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                        onChange={(e) => setField(f.key, e.target.value)}
                         required={f.required}
                       />
                     )}
