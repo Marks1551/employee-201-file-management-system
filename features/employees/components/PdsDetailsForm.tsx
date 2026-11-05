@@ -2,141 +2,44 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Plus, Trash2, Pencil, X, FileDown, Upload, Printer } from "lucide-react";
-import { Card, Button, Field, inputCls } from "@/shared/components/ui";
+import { Button } from "@/shared/components/ui";
 import RecordManager from "@/features/employees/components/RecordManager";
+import SkeletonImage from "@/shared/components/SkeletonImage";
+import {
+  AddressBlock,
+  Captioned,
+  Check,
+  ContinueNote,
+  Detail,
+  LABEL_BG,
+  LINE,
+  Pick,
+  QRow,
+  Row,
+  SectionBar,
+  Sheet,
+  SheetHeader,
+  SignatureRow,
+  Txt,
+  YesNo,
+  fmtDMY,
+  thCls,
+} from "@/features/employees/components/PdsSheet";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
-import { emptyPdsAddress, emptyPdsDetails } from "@/shared/types";
+import { emptyPdsDetails } from "@/shared/types";
 import { exportPds, parsePdsImportText } from "@/shared/lib/pds";
 import { exportPdsWorkbook } from "@/shared/lib/pdsWorkbook";
 import { PDS_COUNTRIES } from "@/shared/lib/pdsCountries";
-import { toInputDate, fromInputDate, toInputDateDMY, fromInputDateDMY } from "@/shared/lib/dateFormat";
-import type { Employee, PdsAddress, PdsChild, PdsDetails } from "@/shared/types";
+import type { Employee, PdsChild, PdsDetails } from "@/shared/types";
 
 /** Civil status choices on CS Form 212 (Revised 2026), item 6. */
 const CIVIL_STATUS_OPTIONS = ["Single", "Married", "Widowed", "Separated", "Others"];
 
+const EDUCATION_LEVELS = ["Elementary", "Secondary", "Vocational / Trade", "College", "Graduate Studies"];
+
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-const sectionTitle = "text-[0.78rem] font-bold uppercase tracking-wide text-ink-faint mb-3 mt-0";
-
-function AddressFields({
-  label,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: PdsAddress;
-  onChange: (a: PdsAddress) => void;
-  disabled?: boolean;
-}) {
-  function set(key: keyof PdsAddress, v: string) {
-    onChange({ ...value, [key]: v || null });
-  }
-  return (
-    <div className="mb-4">
-      <p className="text-[0.82rem] font-semibold text-ink mb-2">{label}</p>
-      <div className="grid gap-3 md:grid-cols-3">
-        <Field label="House/Block/Lot No.">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.houseBlockLot || ""}
-            onChange={(e) => set("houseBlockLot", e.target.value)}
-          />
-        </Field>
-        <Field label="Street">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.street || ""}
-            onChange={(e) => set("street", e.target.value)}
-          />
-        </Field>
-        <Field label="Subdivision/Village">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.subdivision || ""}
-            onChange={(e) => set("subdivision", e.target.value)}
-          />
-        </Field>
-        <Field label="Barangay">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.barangay || ""}
-            onChange={(e) => set("barangay", e.target.value)}
-          />
-        </Field>
-        <Field label="City/Municipality">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.cityMunicipality || ""}
-            onChange={(e) => set("cityMunicipality", e.target.value)}
-          />
-        </Field>
-        <Field label="Province">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.province || ""}
-            onChange={(e) => set("province", e.target.value)}
-          />
-        </Field>
-        <Field label="ZIP Code">
-          <input
-            disabled={disabled}
-            className={inputCls}
-            value={value.zipCode || ""}
-            onChange={(e) => set("zipCode", e.target.value)}
-          />
-        </Field>
-      </div>
-    </div>
-  );
-}
-
-function YesNo({
-  label,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: boolean | null;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-2 border-b border-border last:border-0">
-      <p className="text-[0.86rem] text-ink m-0 flex-1">{label}</p>
-      <div className="flex gap-2 shrink-0">
-        <Button
-          type="button"
-          sm
-          variant={value === true ? "primary" : "secondary"}
-          disabled={disabled}
-          onClick={() => onChange(true)}
-        >
-          Yes
-        </Button>
-        <Button
-          type="button"
-          sm
-          variant={value === false ? "primary" : "secondary"}
-          disabled={disabled}
-          onClick={() => onChange(false)}
-        >
-          No
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 interface Props {
@@ -228,7 +131,8 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
       return;
     }
     setSaving(true);
-    const result = await updateEmployee(employee.id, canEditCore ? { pds: form, ...core } : { pds: form });
+    const pdsOut = form.permanentSameAsResidential ? { ...form, permanentAddress: form.residentialAddress } : form;
+    const result = await updateEmployee(employee.id, canEditCore ? { pds: pdsOut, ...core } : { pds: pdsOut });
     setSaving(false);
     if (!result.ok) {
       showToast(result.error || "Could not save your PDS details. Please try again.", "error");
@@ -293,6 +197,19 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
 
   const d = readOnly || !editing; // shorthand for `disabled`
 
+  // ---- values derived for the sheet layout -------------------------------------------------
+  const dn = d || !canEditCore; // identity fields: only HR/admin may change them
+  const filipino = /^filipino$/i.test((core.nationality || "").trim());
+  const dualOn = !!(form.dualCitizenshipBasis || form.dualCitizenshipCountry);
+  const sameAddr = form.permanentSameAsResidential;
+  const levelIdx = (l: string | null) => {
+    const i = EDUCATION_LEVELS.indexOf(l || "");
+    return i < 0 ? EDUCATION_LEVELS.length : i;
+  };
+  const sortedEducation = [...employee.education].sort((a, b) => levelIdx(a.level) - levelIdx(b.level));
+  const childBlanks = Math.max(0, 10 - form.children.length);
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <div className="flex flex-col gap-6">
       <input
@@ -326,462 +243,329 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
         )}
       </div>
 
-      <Card>
-        <p className={sectionTitle}>I. Personal Information</p>
-        <div className="flex flex-col gap-3">
-          {/* Rows below mirror the printed PDS (CS Form 212, Section I) field for field. */}
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="1. Surname" hint={!canEditCore ? "Name can only be changed by HR." : undefined}>
-              <input
-                disabled={d || !canEditCore}
-                className={inputCls}
-                value={form.lastName || ""}
-                onChange={(e) => set("lastName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="2. First Name">
-              <input
-                disabled={d || !canEditCore}
-                className={inputCls}
-                value={form.firstName || ""}
-                onChange={(e) => set("firstName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Middle Name">
-              <input
-                disabled={d || !canEditCore}
-                className={inputCls}
-                value={form.middleName || ""}
-                onChange={(e) => set("middleName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Name Extension">
-              <input
-                disabled={d || !canEditCore}
-                className={inputCls}
-                placeholder="Jr., Sr., III"
-                value={form.nameExtension || ""}
-                onChange={(e) => set("nameExtension", e.target.value || null)}
-              />
-            </Field>
-          </div>
+      {!readOnly && editing && (
+        <div className="rounded-lg border border-warn-border bg-warn-bg px-4 py-2.5 text-[0.86rem] text-warn-text">
+          <strong>Editing the Personal Data Sheet.</strong> Click a yellow cell to fill it in, tick the boxes that
+          apply, then press <strong>Save PDS Details</strong> at the bottom. Tables (education, work experience, etc.)
+          are edited with the pencil icons beside each row.
+        </div>
+      )}
 
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="3. Date of Birth">
-              <input
-                type="date"
-                disabled={d || !canEditCore}
-                className={inputCls}
-                max={new Date().toISOString().slice(0, 10)}
-                value={toInputDate(core.dob)}
-                onChange={(e) => setCore((c) => ({ ...c, dob: fromInputDate(e.target.value) }))}
+      {/* ===================== PAGE 1 ===================== */}
+      <Sheet page={1}>
+        <SheetHeader />
+
+        <SectionBar>I. PERSONAL INFORMATION</SectionBar>
+        <Row n="1." label="SURNAME" labelW="w-[19%]">
+          <Txt value={form.lastName} onChange={(v) => set("lastName", v)} disabled={dn} />
+        </Row>
+        <Row n="2." label="FIRST NAME" labelW="w-[19%]">
+          <Txt value={form.firstName} onChange={(v) => set("firstName", v)} disabled={dn} />
+          <Captioned caption="NAME EXTENSION (JR., SR)" className="w-[30%] shrink-0">
+            <Txt value={form.nameExtension} onChange={(v) => set("nameExtension", v)} disabled={dn} />
+          </Captioned>
+        </Row>
+        <Row label="MIDDLE NAME" labelW="w-[19%]">
+          <Txt value={form.middleName} onChange={(v) => set("middleName", v)} disabled={dn} />
+        </Row>
+
+        <div className="grid grid-cols-2">
+          {/* ---- left: items 3–15 ---- */}
+          <div className={`flex flex-col border-r ${LINE}`}>
+            <Row n="3." label="DATE OF BIRTH (dd/mm/yyyy)">
+              <Txt
+                kind="date"
+                max={today}
+                value={core.dob}
+                onChange={(v) => setCore((c) => ({ ...c, dob: v || "" }))}
+                disabled={dn}
               />
-            </Field>
-            <Field label="4. Place of Birth">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.placeOfBirth || ""}
-                onChange={(e) => set("placeOfBirth", e.target.value || null)}
-              />
-            </Field>
-            <Field label="5. Sex at Birth">
-              <select
-                disabled={d}
-                className={inputCls}
-                value={form.sexAtBirth || ""}
-                onChange={(e) => set("sexAtBirth", e.target.value || null)}
-              >
-                <option value="">—</option>
+            </Row>
+            <Row n="4." label="PLACE OF BIRTH">
+              <Txt value={form.placeOfBirth} onChange={(v) => set("placeOfBirth", v)} disabled={d} />
+            </Row>
+            <Row n="5." label="SEX AT BIRTH">
+              <div className="flex flex-1 items-center gap-6 px-2">
                 {["Male", "Female"].map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <Check
+                    key={o}
+                    label={o}
+                    checked={form.sexAtBirth === o}
+                    disabled={d}
+                    onChange={() => set("sexAtBirth", form.sexAtBirth === o ? null : o)}
+                  />
                 ))}
-                {form.sexAtBirth && !["Male", "Female"].includes(form.sexAtBirth) && (
-                  <option value={form.sexAtBirth}>{form.sexAtBirth}</option>
-                )}
-              </select>
-            </Field>
-            <Field label="6. Civil Status">
-              <select
-                disabled={d || !canEditCore}
-                className={inputCls}
-                value={core.civilStatus || ""}
-                onChange={(e) => setCore((c) => ({ ...c, civilStatus: e.target.value || null }))}
-              >
-                <option value="">—</option>
+              </div>
+            </Row>
+            <Row n="6." label="CIVIL STATUS" className="min-h-[66px]">
+              <div className="grid flex-1 grid-cols-2 content-center gap-x-3 gap-y-1.5 px-2 py-1.5">
                 {CIVIL_STATUS_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <Check
+                    key={o}
+                    label={o === "Others" ? "Other/s:" : o}
+                    checked={core.civilStatus === o}
+                    disabled={dn}
+                    onChange={() => setCore((c) => ({ ...c, civilStatus: c.civilStatus === o ? null : o }))}
+                  />
                 ))}
                 {core.civilStatus && !CIVIL_STATUS_OPTIONS.includes(core.civilStatus) && (
-                  <option value={core.civilStatus}>{core.civilStatus}</option>
+                  <Check label={core.civilStatus} checked disabled />
                 )}
-              </select>
-            </Field>
+              </div>
+            </Row>
+            <Row n="7." label="HEIGHT (m)">
+              <Txt value={form.heightM} onChange={(v) => set("heightM", v)} disabled={d} />
+            </Row>
+            <Row n="8." label="WEIGHT (kg)">
+              <Txt value={form.weightKg} onChange={(v) => set("weightKg", v)} disabled={d} />
+            </Row>
+            <Row n="9." label="BLOOD TYPE">
+              <Txt value={form.bloodType} onChange={(v) => set("bloodType", v)} disabled={d} />
+            </Row>
+            <Row n="10." label="UMID ID NO.">
+              <Txt value={form.gsisUmidNo} onChange={(v) => set("gsisUmidNo", v)} disabled={d} />
+            </Row>
+            <Row n="11." label="PAG-IBIG ID NO.">
+              <Txt value={form.pagibigNo} onChange={(v) => set("pagibigNo", v)} disabled={d} />
+            </Row>
+            <Row n="12." label="PHILHEALTH NO.">
+              <Txt value={form.philhealthNo} onChange={(v) => set("philhealthNo", v)} disabled={d} />
+            </Row>
+            <Row n="13." label="PhilSys Card Number (PCN):">
+              <Txt value={form.philsysNumber} onChange={(v) => set("philsysNumber", v)} disabled={d} />
+            </Row>
+            <Row n="14." label="TIN NO.">
+              <Txt value={form.tinNo} onChange={(v) => set("tinNo", v)} disabled={d} />
+            </Row>
+            <Row n="15." label="AGENCY EMPLOYEE NO." className="flex-1">
+              <Txt value={form.agencyEmployeeNo} onChange={(v) => set("agencyEmployeeNo", v)} disabled={d} />
+            </Row>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-6">
-            <Field label="7. Height (m)">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.heightM || ""}
-                onChange={(e) => set("heightM", e.target.value || null)}
-              />
-            </Field>
-            <Field label="8. Weight (kg)">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.weightKg || ""}
-                onChange={(e) => set("weightKg", e.target.value || null)}
-              />
-            </Field>
-            <Field label="9. Blood Type">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.bloodType || ""}
-                onChange={(e) => set("bloodType", e.target.value || null)}
-              />
-            </Field>
-            <Field label="16. Citizenship">
-              <input
-                disabled={d || !canEditCore}
-                className={inputCls}
-                value={core.nationality || ""}
-                onChange={(e) => setCore((c) => ({ ...c, nationality: e.target.value || null }))}
-              />
-            </Field>
-            <Field label="Dual Citizenship — by" hint="If applicable">
-              <select
-                disabled={d}
-                className={inputCls}
-                value={form.dualCitizenshipBasis || ""}
-                onChange={(e) => set("dualCitizenshipBasis", e.target.value || null)}
+          {/* ---- right: items 16–21 ---- */}
+          <div className="flex flex-col">
+            <div className={`flex border-b ${LINE}`}>
+              <div
+                className={`w-[34%] shrink-0 border-r ${LINE} ${LABEL_BG} px-2 py-1 text-[10.5px] uppercase leading-tight`}
               >
-                <option value="">—</option>
-                <option value="by birth">By birth</option>
-                <option value="by naturalization">By naturalization</option>
-              </select>
-            </Field>
-            <Field label="Dual Citizenship — Country" hint="Please indicate country">
-              <select
-                disabled={d}
-                className={inputCls}
-                value={form.dualCitizenshipCountry || ""}
-                onChange={(e) => set("dualCitizenshipCountry", e.target.value || null)}
-              >
-                <option value="">—</option>
-                {PDS_COUNTRIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-                {form.dualCitizenshipCountry && !PDS_COUNTRIES.includes(form.dualCitizenshipCountry) && (
-                  <option value={form.dualCitizenshipCountry}>{form.dualCitizenshipCountry}</option>
+                <div>
+                  <span className="mr-1.5">16.</span>CITIZENSHIP
+                </div>
+                <div className="mt-3 normal-case">If holder of dual citizenship, please indicate the details.</div>
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-2 px-2 py-1.5">
+                <div className="flex flex-wrap gap-x-5 gap-y-1">
+                  <Check
+                    label="Filipino"
+                    checked={filipino}
+                    disabled={dn}
+                    onChange={(on) => setCore((c) => ({ ...c, nationality: on ? "Filipino" : null }))}
+                  />
+                  <Check
+                    label="Dual Citizenship"
+                    checked={dualOn}
+                    disabled={d}
+                    onChange={(on) => {
+                      set("dualCitizenshipBasis", on ? "by birth" : null);
+                      if (!on) set("dualCitizenshipCountry", null);
+                    }}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-x-5 gap-y-1 pl-5">
+                  {["by birth", "by naturalization"].map((o) => (
+                    <Check
+                      key={o}
+                      label={o}
+                      checked={form.dualCitizenshipBasis === o}
+                      disabled={d || !dualOn}
+                      onChange={() => set("dualCitizenshipBasis", o)}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pl-5">
+                  <span className="shrink-0 text-[11.5px]">Pls. indicate country:</span>
+                  <Pick
+                    value={form.dualCitizenshipCountry}
+                    onChange={(v) => set("dualCitizenshipCountry", v)}
+                    disabled={d || !dualOn}
+                    options={PDS_COUNTRIES}
+                    className={`border-b ${LINE}`}
+                  />
+                </div>
+                {!filipino && (editing || core.nationality) && (
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 text-[11.5px]">Citizenship (if not Filipino):</span>
+                    <Txt
+                      value={core.nationality}
+                      onChange={(v) => setCore((c) => ({ ...c, nationality: v }))}
+                      disabled={dn}
+                      className={`border-b ${LINE}`}
+                    />
+                  </div>
                 )}
-              </select>
-            </Field>
-          </div>
+              </div>
+            </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="10. UMID ID No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.gsisUmidNo || ""}
-                onChange={(e) => set("gsisUmidNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="11. Pag-IBIG ID No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.pagibigNo || ""}
-                onChange={(e) => set("pagibigNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="12. PhilHealth No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.philhealthNo || ""}
-                onChange={(e) => set("philhealthNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="13. PhilSys Card Number (PCN)">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.philsysNumber || ""}
-                onChange={(e) => set("philsysNumber", e.target.value || null)}
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-5">
-            <Field label="14. TIN No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.tinNo || ""}
-                onChange={(e) => set("tinNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="15. Agency Employee No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.agencyEmployeeNo || ""}
-                onChange={(e) => set("agencyEmployeeNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="19. Telephone No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.telephoneNo || ""}
-                onChange={(e) => set("telephoneNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="20. Mobile No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.mobileNo ?? employee.contact ?? ""}
-                onChange={(e) => set("mobileNo", e.target.value || null)}
-              />
-            </Field>
-            <Field label="21. Email Address">
-              <input
-                type="email"
-                disabled={d || !canEditCore}
-                className={inputCls}
-                value={core.email || ""}
-                onChange={(e) => setCore((c) => ({ ...c, email: e.target.value || null }))}
-              />
-            </Field>
-          </div>
-        </div>
-        <div className="mt-4">
-          <AddressFields
-            label="17. Residential Address"
-            value={form.residentialAddress}
-            onChange={(a) => set("residentialAddress", a)}
-            disabled={d}
-          />
-          {!d && (
-            <label className="flex items-center gap-2 text-[0.86rem] text-ink mb-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.permanentSameAsResidential}
-                onChange={(e) => {
-                  const same = e.target.checked;
-                  set("permanentSameAsResidential", same);
-                  if (same) set("permanentAddress", form.residentialAddress);
-                }}
-              />
-              Permanent address is the same as residential address
-            </label>
-          )}
-          {d && form.permanentSameAsResidential && (
-            <p className="text-[0.82rem] text-ink-faint mb-3">Permanent address is the same as residential address.</p>
-          )}
-          {!form.permanentSameAsResidential && (
-            <AddressFields
-              label="18. Permanent Address"
-              value={form.permanentAddress}
-              onChange={(a) => set("permanentAddress", a)}
+            <AddressBlock
+              n="17."
+              label="RESIDENTIAL ADDRESS"
+              value={form.residentialAddress}
+              onChange={(k, v) => set("residentialAddress", { ...form.residentialAddress, [k]: v })}
               disabled={d}
             />
-          )}
-        </div>
-      </Card>
-
-      <Card>
-        <p className={sectionTitle}>II. Family Background</p>
-        {/* Rows below mirror the printed PDS (CS Form 212, Section II) field for field. */}
-        <div className="flex flex-col gap-3">
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="22. Spouse's Surname">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseSurname || ""}
-                onChange={(e) => set("spouseSurname", e.target.value || null)}
+            <AddressBlock
+              n="18."
+              label="PERMANENT ADDRESS"
+              value={sameAddr ? form.residentialAddress : form.permanentAddress}
+              onChange={(k, v) => set("permanentAddress", { ...form.permanentAddress, [k]: v })}
+              disabled={d || sameAddr}
+              extraLabel={
+                !readOnly && (editing || sameAddr) ? (
+                  <Check
+                    label="Same as residential"
+                    checked={sameAddr}
+                    disabled={d}
+                    onChange={(same) => {
+                      set("permanentSameAsResidential", same);
+                      if (same) set("permanentAddress", form.residentialAddress);
+                    }}
+                  />
+                ) : undefined
+              }
+            />
+            <Row n="19." label="TELEPHONE NO." labelW="w-[34%]">
+              <Txt value={form.telephoneNo} onChange={(v) => set("telephoneNo", v)} disabled={d} />
+            </Row>
+            <Row n="20." label="MOBILE NO." labelW="w-[34%]">
+              <Txt value={form.mobileNo ?? employee.contact ?? ""} onChange={(v) => set("mobileNo", v)} disabled={d} />
+            </Row>
+            <Row n="21." label="E-MAIL ADDRESS (if any)" labelW="w-[34%]" className="flex-1">
+              <Txt
+                kind="email"
+                value={core.email}
+                onChange={(v) => setCore((c) => ({ ...c, email: v }))}
+                disabled={dn}
               />
-            </Field>
-            <Field label="First Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseFirstName || ""}
-                onChange={(e) => set("spouseFirstName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Middle Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseMiddleName || ""}
-                onChange={(e) => set("spouseMiddleName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Name Extension">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseNameExtension || ""}
-                onChange={(e) => set("spouseNameExtension", e.target.value || null)}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="Occupation">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseOccupation || ""}
-                onChange={(e) => set("spouseOccupation", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Employer / Business Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseEmployer || ""}
-                onChange={(e) => set("spouseEmployer", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Business Address">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseBusinessAddress || ""}
-                onChange={(e) => set("spouseBusinessAddress", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Telephone No.">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.spouseTelephone || ""}
-                onChange={(e) => set("spouseTelephone", e.target.value || null)}
-              />
-            </Field>
+            </Row>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4 mb-2">
-          <p className="text-[0.82rem] font-semibold text-ink m-0">23. Name of Children (Date of Birth)</p>
-          {!d && (
-            <Button type="button" variant="secondary" sm onClick={addChild}>
-              <Plus size={14} />
-              Add Child
-            </Button>
-          )}
-        </div>
-        {form.children.length === 0 && <p className="text-[0.82rem] text-ink-faint mb-4">No children on file.</p>}
-        {form.children.map((c) => (
-          <div key={c.id} className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end mb-2">
-            <Field label="Full Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={c.name}
-                onChange={(e) => updateChild(c.id, { name: e.target.value })}
-              />
-            </Field>
-            <Field label="Date of Birth">
-              <input
-                type="date"
-                disabled={d}
-                className={inputCls}
-                value={toInputDateDMY(c.dob)}
-                onChange={(e) => updateChild(c.id, { dob: fromInputDateDMY(e.target.value) || null })}
-              />
-            </Field>
+        <SectionBar>II. FAMILY BACKGROUND</SectionBar>
+        <div className="grid grid-cols-2">
+          <div className={`border-r ${LINE}`}>
+            <Row n="22." label="SPOUSE'S SURNAME">
+              <Txt value={form.spouseSurname} onChange={(v) => set("spouseSurname", v)} disabled={d} />
+            </Row>
+            <Row label="FIRST NAME" labelW="w-[38%]">
+              <Txt value={form.spouseFirstName} onChange={(v) => set("spouseFirstName", v)} disabled={d} />
+              <Captioned caption="NAME EXTENSION (JR., SR)" className="w-[34%] shrink-0">
+                <Txt value={form.spouseNameExtension} onChange={(v) => set("spouseNameExtension", v)} disabled={d} />
+              </Captioned>
+            </Row>
+            <Row label="MIDDLE NAME">
+              <Txt value={form.spouseMiddleName} onChange={(v) => set("spouseMiddleName", v)} disabled={d} />
+            </Row>
+            <Row label="OCCUPATION">
+              <Txt value={form.spouseOccupation} onChange={(v) => set("spouseOccupation", v)} disabled={d} />
+            </Row>
+            <Row label="EMPLOYER/BUSINESS NAME">
+              <Txt value={form.spouseEmployer} onChange={(v) => set("spouseEmployer", v)} disabled={d} />
+            </Row>
+            <Row label="BUSINESS ADDRESS">
+              <Txt value={form.spouseBusinessAddress} onChange={(v) => set("spouseBusinessAddress", v)} disabled={d} />
+            </Row>
+            <Row label="TELEPHONE NO.">
+              <Txt value={form.spouseTelephone} onChange={(v) => set("spouseTelephone", v)} disabled={d} />
+            </Row>
+
+            <Row n="24." label="FATHER'S SURNAME">
+              <Txt value={form.fatherSurname} onChange={(v) => set("fatherSurname", v)} disabled={d} />
+            </Row>
+            <Row label="FIRST NAME">
+              <Txt value={form.fatherFirstName} onChange={(v) => set("fatherFirstName", v)} disabled={d} />
+              <Captioned caption="NAME EXTENSION (JR., SR)" className="w-[34%] shrink-0">
+                <Txt value={form.fatherNameExtension} onChange={(v) => set("fatherNameExtension", v)} disabled={d} />
+              </Captioned>
+            </Row>
+            <Row label="MIDDLE NAME">
+              <Txt value={form.fatherMiddleName} onChange={(v) => set("fatherMiddleName", v)} disabled={d} />
+            </Row>
+
+            <div
+              className={`flex min-h-[30px] items-center gap-1.5 border-b ${LINE} ${LABEL_BG} px-2 py-1 text-[10.5px] uppercase`}
+            >
+              <span className="w-4 shrink-0">25.</span>
+              MOTHER&apos;S MAIDEN NAME
+            </div>
+            <Row label="SURNAME">
+              <Txt value={form.motherMaidenSurname} onChange={(v) => set("motherMaidenSurname", v)} disabled={d} />
+            </Row>
+            <Row label="FIRST NAME">
+              <Txt value={form.motherFirstName} onChange={(v) => set("motherFirstName", v)} disabled={d} />
+            </Row>
+            <Row label="MIDDLE NAME" className="border-b-0">
+              <Txt value={form.motherMiddleName} onChange={(v) => set("motherMiddleName", v)} disabled={d} />
+            </Row>
+          </div>
+
+          {/* 23. children */}
+          <div className="flex flex-col">
+            <div className={`flex border-b ${LINE} ${LABEL_BG} text-[10.5px] uppercase leading-tight`}>
+              <div className={`flex-1 border-r ${LINE} px-2 py-1.5`}>
+                <span className="mr-1.5">23.</span>NAME of CHILDREN{" "}
+                <span className="normal-case">(Write full name and list all)</span>
+              </div>
+              <div className="w-[34%] px-2 py-1.5 text-center">DATE OF BIRTH (dd/mm/yyyy)</div>
+              {!d && <div className="w-8" />}
+            </div>
+            {form.children.map((c) => (
+              <div key={c.id} className={`flex min-h-[30px] border-b ${LINE}`}>
+                <div className={`flex flex-1 border-r ${LINE}`}>
+                  <Txt value={c.name} onChange={(v) => updateChild(c.id, { name: v || "" })} disabled={d} />
+                </div>
+                <div className="flex w-[34%]">
+                  <Txt kind="dateDMY" value={c.dob} onChange={(v) => updateChild(c.id, { dob: v })} disabled={d} />
+                </div>
+                {!d && (
+                  <button
+                    type="button"
+                    title="Remove child"
+                    aria-label="Remove child"
+                    onClick={() => removeChild(c.id)}
+                    className="flex w-8 cursor-pointer items-center justify-center text-danger-text hover:bg-danger-bg"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {Array.from({ length: childBlanks }).map((_, i) => (
+              <div key={`cb-${i}`} className={`flex min-h-[30px] border-b ${LINE}`}>
+                <div className={`flex-1 border-r ${LINE}`} />
+                <div className="w-[34%]" />
+                {!d && <div className="w-8" />}
+              </div>
+            ))}
             {!d && (
-              <Button type="button" variant="danger" sm onClick={() => removeChild(c.id)}>
-                <Trash2 size={14} />
-                Remove
-              </Button>
+              <div className={`flex justify-end border-b ${LINE} bg-amber-50 px-2 py-1`}>
+                <button
+                  type="button"
+                  onClick={addChild}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded border border-neutral-700 bg-white px-2 py-0.5 text-[11.5px] font-semibold text-black hover:bg-neutral-100"
+                >
+                  <Plus size={13} />
+                  Add Child
+                </button>
+              </div>
             )}
-          </div>
-        ))}
-
-        <div className="flex flex-col gap-3 mt-4">
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="24. Father's Surname">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.fatherSurname || ""}
-                onChange={(e) => set("fatherSurname", e.target.value || null)}
-              />
-            </Field>
-            <Field label="First Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.fatherFirstName || ""}
-                onChange={(e) => set("fatherFirstName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Middle Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.fatherMiddleName || ""}
-                onChange={(e) => set("fatherMiddleName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Name Extension">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.fatherNameExtension || ""}
-                onChange={(e) => set("fatherNameExtension", e.target.value || null)}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-3 md:grid-cols-4">
-            <Field label="25. Mother's Maiden Surname">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.motherMaidenSurname || ""}
-                onChange={(e) => set("motherMaidenSurname", e.target.value || null)}
-              />
-            </Field>
-            <Field label="First Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.motherFirstName || ""}
-                onChange={(e) => set("motherFirstName", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Middle Name">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.motherMiddleName || ""}
-                onChange={(e) => set("motherMiddleName", e.target.value || null)}
-              />
-            </Field>
+            <div className="flex-1" />
+            <ContinueNote sheet="C7" />
           </div>
         </div>
-      </Card>
 
-      <Card>
-        <p className={sectionTitle}>III. Educational Background</p>
+        <SectionBar>III. EDUCATIONAL BACKGROUND</SectionBar>
         <RecordManager
-          items={employee.education}
+          items={sortedEducation}
           typeLabel="education record"
           addButtonLabel="Add Education"
           emptyMessage="No educational background on file yet."
@@ -817,25 +601,69 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             honors: "",
           }}
           columns={[
-            { key: "level", label: "Level" },
-            { key: "schoolName", label: "School" },
-            { key: "degree", label: "Degree / Course" },
-            { key: "periodFrom", label: "From" },
-            { key: "periodTo", label: "To" },
-            { key: "highestLevelUnits", label: "Highest Level / Units" },
-            { key: "yearGraduated", label: "Year Graduated" },
-            { key: "honors", label: "Honors" },
+            { key: "level", label: "" },
+            { key: "schoolName", label: "" },
+            { key: "degree", label: "" },
+            { key: "periodFrom", label: "" },
+            { key: "periodTo", label: "" },
+            { key: "highestLevelUnits", label: "" },
+            { key: "yearGraduated", label: "" },
+            { key: "honors", label: "" },
           ]}
+          formStyle={{
+            widths: [12, 20, 20, 6, 6, 12, 8, 16],
+            headRows: 2,
+            minRows: 5,
+            continueSheet: "C8",
+            head: (action) => (
+              <>
+                <tr>
+                  <th rowSpan={2} className={thCls}>
+                    26. LEVEL
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    NAME OF SCHOOL
+                    <br />
+                    (Write in full)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    BASIC EDUCATION/DEGREE/COURSE
+                    <br />
+                    (Write in full)
+                  </th>
+                  <th colSpan={2} className={thCls}>
+                    PERIOD OF ATTENDANCE (yyyy)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    HIGHEST LEVEL/ UNITS EARNED (if not graduated)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    YEAR GRADUATED
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    SCHOLARSHIP/ ACADEMIC HONORS RECEIVED
+                  </th>
+                  {action}
+                </tr>
+                <tr>
+                  <th className={thCls}>From</th>
+                  <th className={thCls}>To</th>
+                </tr>
+              </>
+            ),
+          }}
           onAdd={(data) => addEducation(employee.id, data)}
           onUpdate={(recordId, patch) => updateEducation(employee.id, recordId, patch)}
           archive
           onDelete={(recordId) => archiveEducation(employee.id, recordId)}
           readOnly={readOnly}
         />
-      </Card>
+        <SignatureRow />
+      </Sheet>
 
-      <Card>
-        <p className={sectionTitle}>IV. Civil Service Eligibility</p>
+      {/* ===================== PAGE 2 ===================== */}
+      <Sheet page={2}>
+        <SectionBar>IV. CIVIL SERVICE ELIGIBILITY</SectionBar>
         <RecordManager
           items={employee.civilServiceEligibility}
           typeLabel="eligibility record"
@@ -853,20 +681,56 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
           ]}
           emptyForm={{ name: "", rating: "", examDate: "", examPlace: "", licenseNumber: "", licenseValidUntil: "" }}
           columns={[
-            { key: "name", label: "Eligibility" },
-            { key: "rating", label: "Rating" },
-            { key: "examDate", label: "Exam / Conferment Date" },
-            { key: "examPlace", label: "Place" },
+            { key: "name", label: "" },
+            { key: "rating", label: "" },
+            { key: "examDate", label: "", render: (r) => fmtDMY(r.examDate) },
+            { key: "examPlace", label: "" },
+            { key: "licenseNumber", label: "" },
+            { key: "licenseValidUntil", label: "", render: (r) => fmtDMY(r.licenseValidUntil) },
           ]}
+          formStyle={{
+            widths: [30, 10, 13, 25, 12, 10],
+            headRows: 2,
+            minRows: 5,
+            continueSheet: "C9",
+            head: (action) => (
+              <>
+                <tr>
+                  <th rowSpan={2} className={thCls}>
+                    27. CAREER SERVICE/ RA 1080 (BOARD/ BAR) UNDER SPECIAL LAWS/ CES/ CSEE BARANGAY ELIGIBILITY /
+                    DRIVER&apos;S LICENSE
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    RATING
+                    <br />
+                    (If Applicable)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    DATE OF EXAMINATION / CONFERMENT
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    PLACE OF EXAMINATION / CONFERMENT
+                  </th>
+                  <th colSpan={2} className={thCls}>
+                    LICENSE (if applicable)
+                  </th>
+                  {action}
+                </tr>
+                <tr>
+                  <th className={thCls}>NUMBER</th>
+                  <th className={thCls}>Date of Validity</th>
+                </tr>
+              </>
+            ),
+          }}
           onAdd={(data) => addCivilServiceEligibility(employee.id, data)}
           onUpdate={(recordId, patch) => updateCivilServiceEligibility(employee.id, recordId, patch)}
           onDelete={(recordId) => deleteCivilServiceEligibility(employee.id, recordId)}
           readOnly={readOnly}
         />
-      </Card>
-
-      <Card>
-        <p className={sectionTitle}>V. Work Experience</p>
+        <SectionBar note="(Include private employment. Start from your recent work) Description of duties should be indicated in the attached Work Experience sheet.">
+          V. WORK EXPERIENCE
+        </SectionBar>
         <RecordManager
           items={employee.workExperience}
           typeLabel="work experience record"
@@ -919,25 +783,69 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             description: "",
           }}
           columns={[
-            { key: "company", label: "Company" },
-            { key: "position", label: "Position" },
-            { key: "fromDate", label: "From" },
-            { key: "toDate", label: "To", render: (r) => r.toDate || "Present" },
-            { key: "monthlySalary", label: "Monthly Salary" },
-            { key: "salaryGrade", label: "Pay Grade & Step" },
+            { key: "fromDate", label: "", render: (r) => fmtDMY(r.fromDate) },
+            { key: "toDate", label: "", render: (r) => (r.toDate ? fmtDMY(r.toDate) : "Present") },
+            { key: "position", label: "" },
+            { key: "company", label: "" },
+            { key: "monthlySalary", label: "" },
+            { key: "salaryGrade", label: "" },
+            { key: "statusOfAppointment", label: "" },
+            { key: "govtService", label: "" },
           ]}
+          formStyle={{
+            widths: [8, 8, 19, 25, 9, 12, 12, 7],
+            headRows: 2,
+            minRows: 6,
+            continueSheet: "C6",
+            head: (action) => (
+              <>
+                <tr>
+                  <th colSpan={2} className={thCls}>
+                    28. INCLUSIVE DATES (dd/mm/yyyy)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    POSITION TITLE
+                    <br />
+                    (Write in full/Do not abbreviate)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    DEPARTMENT / AGENCY / OFFICE / COMPANY
+                    <br />
+                    (Write in full/Do not abbreviate)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    MONTHLY SALARY
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    SALARY/ JOB/ PAY GRADE (if applicable) &amp; STEP INCREMENT (Format &quot;00-0&quot;)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    STATUS OF APPOINTMENT
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    GOVT. SERVICE (Y/N)
+                  </th>
+                  {action}
+                </tr>
+                <tr>
+                  <th className={thCls}>From</th>
+                  <th className={thCls}>To</th>
+                </tr>
+              </>
+            ),
+          }}
           onAdd={(data) => addWorkExperience(employee.id, data)}
           onUpdate={(recordId, patch) => updateWorkExperience(employee.id, recordId, patch)}
           archive
           onDelete={(recordId) => archiveWorkExperience(employee.id, recordId)}
           readOnly={readOnly}
         />
-      </Card>
+        <SignatureRow />
+      </Sheet>
 
-      <Card>
-        <p className={sectionTitle}>
-          VI. Learning and Development (L&amp;D) Interventions / Training Programs Attended
-        </p>
+      {/* ===================== PAGE 3 ===================== */}
+      <Sheet page={3}>
+        <SectionBar>VI. LEARNING AND DEVELOPMENT (L&amp;D) INTERVENTIONS/TRAINING PROGRAMS ATTENDED</SectionBar>
         <RecordManager
           items={employee.training}
           typeLabel="training record"
@@ -983,25 +891,58 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
             expiresOn: "",
           }}
           columns={[
-            { key: "course", label: "Training / Course" },
-            { key: "fromDate", label: "From" },
-            { key: "completed", label: "To" },
-            { key: "hours", label: "Hours" },
-            { key: "ldType", label: "Type of L&D" },
-            { key: "conductedBy", label: "Conducted / Sponsored by" },
+            { key: "course", label: "" },
+            { key: "fromDate", label: "", render: (r) => fmtDMY(r.fromDate) },
+            { key: "completed", label: "", render: (r) => fmtDMY(r.completed) },
+            { key: "hours", label: "" },
+            { key: "ldType", label: "" },
+            { key: "conductedBy", label: "" },
           ]}
+          formStyle={{
+            widths: [34, 9, 9, 8, 12, 28],
+            headRows: 2,
+            minRows: 5,
+            continueSheet: "C5",
+            head: (action) => (
+              <>
+                <tr>
+                  <th rowSpan={2} className={thCls}>
+                    29. TITLE OF LEARNING AND DEVELOPMENT INTERVENTIONS/TRAINING PROGRAMS
+                    <br />
+                    (Write in full)
+                  </th>
+                  <th colSpan={2} className={thCls}>
+                    INCLUSIVE DATES OF ATTENDANCE (dd/mm/yyyy)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    NUMBER OF HOURS
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    Type of L&amp;D (Managerial/ Supervisory/ Technical/etc)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    CONDUCTED/ SPONSORED BY
+                    <br />
+                    (Write in full)
+                  </th>
+                  {action}
+                </tr>
+                <tr>
+                  <th className={thCls}>From</th>
+                  <th className={thCls}>To</th>
+                </tr>
+              </>
+            ),
+          }}
           onAdd={(data) => addTraining(employee.id, data)}
           onUpdate={(recordId, patch) => updateTraining(employee.id, recordId, patch)}
           archive
           onDelete={canArchiveTraining ? (recordId) => archiveTraining(employee.id, recordId) : undefined}
           readOnly={readOnly}
         />
-      </Card>
-
-      <Card>
-        <p className={sectionTitle}>
-          VII. Voluntary Work or Involvement in Civic / Non-Government / People / Voluntary Organization/s
-        </p>
+        <SectionBar>
+          VII. VOLUNTARY WORK OR INVOLVEMENT IN CIVIC / NON-GOVERNMENT / PEOPLE / VOLUNTARY ORGANIZATION/S
+        </SectionBar>
         <RecordManager
           items={employee.voluntaryWork}
           typeLabel="voluntary work record"
@@ -1018,329 +959,463 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
           ]}
           emptyForm={{ organization: "", fromDate: "", toDate: "", hours: "", position: "" }}
           columns={[
-            { key: "organization", label: "Organization" },
-            { key: "fromDate", label: "From" },
-            { key: "toDate", label: "To" },
-            { key: "hours", label: "Hours" },
-            { key: "position", label: "Position" },
+            { key: "organization", label: "" },
+            { key: "fromDate", label: "", render: (r) => fmtDMY(r.fromDate) },
+            { key: "toDate", label: "", render: (r) => fmtDMY(r.toDate) },
+            { key: "hours", label: "" },
+            { key: "position", label: "" },
           ]}
+          formStyle={{
+            widths: [38, 10, 10, 9, 33],
+            headRows: 2,
+            minRows: 4,
+            continueSheet: "C10",
+            head: (action) => (
+              <>
+                <tr>
+                  <th rowSpan={2} className={thCls}>
+                    30. NAME &amp; ADDRESS OF ORGANIZATION
+                    <br />
+                    (Write in full)
+                  </th>
+                  <th colSpan={2} className={thCls}>
+                    INCLUSIVE DATES (dd/mm/yyyy)
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    NUMBER OF HOURS
+                  </th>
+                  <th rowSpan={2} className={thCls}>
+                    POSITION / NATURE OF WORK
+                  </th>
+                  {action}
+                </tr>
+                <tr>
+                  <th className={thCls}>From</th>
+                  <th className={thCls}>To</th>
+                </tr>
+              </>
+            ),
+          }}
           onAdd={(data) => addVoluntaryWork(employee.id, data)}
           onUpdate={(recordId, patch) => updateVoluntaryWork(employee.id, recordId, patch)}
           onDelete={(recordId) => deleteVoluntaryWork(employee.id, recordId)}
           readOnly={readOnly}
         />
-      </Card>
 
-      <Card>
-        <p className={sectionTitle}>VIII. Other Information</p>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Field label="31. Special Skills and Hobbies">
-            <textarea
-              disabled={d}
-              className={`${inputCls} min-h-[80px] py-2.5`}
-              value={form.specialSkillsHobbies || ""}
-              onChange={(e) => set("specialSkillsHobbies", e.target.value || null)}
-            />
-          </Field>
-          <Field label="32. Non-Academic Distinctions / Recognition">
-            <textarea
-              disabled={d}
-              className={`${inputCls} min-h-[80px] py-2.5`}
-              value={form.nonAcademicDistinctions || ""}
-              onChange={(e) => set("nonAcademicDistinctions", e.target.value || null)}
-            />
-          </Field>
-          <Field label="33. Membership in Association / Organization">
-            <textarea
-              disabled={d}
-              className={`${inputCls} min-h-[80px] py-2.5`}
-              value={form.orgMemberships || ""}
-              onChange={(e) => set("orgMemberships", e.target.value || null)}
-            />
-          </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <p className={sectionTitle}>Declarations (Questions 34–40)</p>
-        <YesNo
-          disabled={d}
-          label="34a. Related within the third degree to the appointing/recommending authority?"
-          value={form.q34RelatedThirdDegree}
-          onChange={(v) => set("q34RelatedThirdDegree", v)}
-        />
-        <YesNo
-          disabled={d}
-          label="34b. Related within the fourth degree (LGU career employees)?"
-          value={form.q34RelatedFourthDegree}
-          onChange={(v) => set("q34RelatedFourthDegree", v)}
-        />
-        {(form.q34RelatedThirdDegree || form.q34RelatedFourthDegree) && (
-          <Field label="If YES, give details">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q34Details || ""}
-              onChange={(e) => set("q34Details", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="35a. Ever found guilty of any administrative offense?"
-          value={form.q35aAdminOffense}
-          onChange={(v) => set("q35aAdminOffense", v)}
-        />
-        {form.q35aAdminOffense && (
-          <Field label="If YES, give details">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q35aDetails || ""}
-              onChange={(e) => set("q35aDetails", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="35b. Criminally charged before any court?"
-          value={form.q35bCriminalCharge}
-          onChange={(v) => set("q35bCriminalCharge", v)}
-        />
-        {form.q35bCriminalCharge && (
-          <div className="grid gap-3 md:grid-cols-3 mb-3">
-            <Field label="Details">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.q35bDetails || ""}
-                onChange={(e) => set("q35bDetails", e.target.value || null)}
-              />
-            </Field>
-            <Field label="Date Filed">
-              <input
-                type="date"
-                disabled={d}
-                className={inputCls}
-                value={toInputDate(form.q35bDateFiled)}
-                onChange={(e) => set("q35bDateFiled", fromInputDate(e.target.value) || null)}
-              />
-            </Field>
-            <Field label="Status of Case/s">
-              <input
-                disabled={d}
-                className={inputCls}
-                value={form.q35bStatus || ""}
-                onChange={(e) => set("q35bStatus", e.target.value || null)}
-              />
-            </Field>
+        <SectionBar>VIII. OTHER INFORMATION</SectionBar>
+        <div
+          className={`grid grid-cols-[22%_46%_32%] ${LABEL_BG} border-b ${LINE} text-[10.5px] uppercase leading-tight`}
+        >
+          <div className={`border-r ${LINE} px-2 py-1.5`}>
+            <span className="mr-2">31.</span>SPECIAL SKILLS and HOBBIES
           </div>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="36. Ever convicted of any crime or violation of law/decree/ordinance?"
-          value={form.q36Convicted}
-          onChange={(v) => set("q36Convicted", v)}
-        />
-        {form.q36Convicted && (
-          <Field label="If YES, give details">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q36Details || ""}
-              onChange={(e) => set("q36Details", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="37. Ever separated from the service (resignation, retirement, dropped from the rolls, dismissal, termination, end of term, finished contract or phased out) in the public or private sector?"
-          value={form.q37Separated}
-          onChange={(v) => set("q37Separated", v)}
-        />
-        {form.q37Separated && (
-          <Field label="If YES, give details">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q37Details || ""}
-              onChange={(e) => set("q37Details", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="38a. Ever a candidate in a national/local election (except Barangay)?"
-          value={form.q38aCandidate}
-          onChange={(v) => set("q38aCandidate", v)}
-        />
-        {form.q38aCandidate && (
-          <Field label="If YES, give details">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q38aDetails || ""}
-              onChange={(e) => set("q38aDetails", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="38b. Resigned from government service to campaign for a candidate?"
-          value={form.q38bResigned}
-          onChange={(v) => set("q38bResigned", v)}
-        />
-        {form.q38bResigned && (
-          <Field label="If YES, give details">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q38bDetails || ""}
-              onChange={(e) => set("q38bDetails", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="39. Acquired status of immigrant/permanent resident of another country?"
-          value={form.q39Immigrant}
-          onChange={(v) => set("q39Immigrant", v)}
-        />
-        {form.q39Immigrant && (
-          <Field label="If YES, country">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q39Country || ""}
-              onChange={(e) => set("q39Country", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="40a. Are you a member of any indigenous group? (RA 8371)"
-          value={form.q40aIndigenous}
-          onChange={(v) => set("q40aIndigenous", v)}
-        />
-        {form.q40aIndigenous && (
-          <Field label="Please specify">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q40aDetails || ""}
-              onChange={(e) => set("q40aDetails", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="40b. Are you a person with disability? (RA 7277, as amended)"
-          value={form.q40bPwd}
-          onChange={(v) => set("q40bPwd", v)}
-        />
-        {form.q40bPwd && (
-          <Field label="ID No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q40bIdNo || ""}
-              onChange={(e) => set("q40bIdNo", e.target.value || null)}
-            />
-          </Field>
-        )}
-
-        <YesNo
-          disabled={d}
-          label="40c. Are you a solo parent? (RA 11861)"
-          value={form.q40cSoloParent}
-          onChange={(v) => set("q40cSoloParent", v)}
-        />
-        {form.q40cSoloParent && (
-          <Field label="ID No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.q40cIdNo || ""}
-              onChange={(e) => set("q40cIdNo", e.target.value || null)}
-            />
-          </Field>
-        )}
-      </Card>
-
-      <Card>
-        <p className={sectionTitle}>41. References</p>
-        <RecordManager
-          items={employee.pdsReferences}
-          typeLabel="reference"
-          addButtonLabel="Add Reference"
-          emptyMessage="No references on file yet."
-          employeeName={employee.displayName}
-          itemLabel={(r) => r.name}
-          fields={[
-            { key: "name", label: "Name", required: true },
-            { key: "address", label: "Office / Residential Address" },
-            { key: "contact", label: "Contact No. and/or Email" },
-          ]}
-          emptyForm={{ name: "", address: "", contact: "" }}
-          columns={[
-            { key: "name", label: "Name" },
-            { key: "address", label: "Address" },
-            { key: "contact", label: "Contact" },
-          ]}
-          onAdd={(data) => addPdsReference(employee.id, data)}
-          onUpdate={(recordId, patch) => updatePdsReference(employee.id, recordId, patch)}
-          onDelete={(recordId) => deletePdsReference(employee.id, recordId)}
-          readOnly={readOnly}
-        />
-      </Card>
-
-      <Card>
-        <p className={sectionTitle}>Government Issued ID (for signature block)</p>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="ID Type" hint="Passport, GSIS, SSS, PRC, Driver's License, etc.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.govIdType || ""}
-              onChange={(e) => set("govIdType", e.target.value || null)}
-            />
-          </Field>
-          <Field label="ID / License / Passport No.">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.govIdNumber || ""}
-              onChange={(e) => set("govIdNumber", e.target.value || null)}
-            />
-          </Field>
-          <Field label="Date of Issuance">
-            <input
-              type="date"
-              disabled={d}
-              className={inputCls}
-              value={toInputDate(form.govIdDateIssued)}
-              onChange={(e) => set("govIdDateIssued", fromInputDate(e.target.value) || null)}
-            />
-          </Field>
-          <Field label="Place of Issuance">
-            <input
-              disabled={d}
-              className={inputCls}
-              value={form.govIdPlaceIssued || ""}
-              onChange={(e) => set("govIdPlaceIssued", e.target.value || null)}
-            />
-          </Field>
+          <div className={`border-r ${LINE} px-2 py-1.5 text-center`}>
+            <span className="float-left mr-2">32.</span>NON-ACADEMIC DISTINCTIONS / RECOGNITION
+            <div className="normal-case">(Write in full)</div>
+          </div>
+          <div className="px-2 py-1.5 text-center">
+            <span className="float-left mr-2">33.</span>MEMBERSHIP IN ASSOCIATION/ORGANIZATION
+            <div className="normal-case">(Write in full)</div>
+          </div>
         </div>
-      </Card>
+        <div className="grid grid-cols-[22%_46%_32%]">
+          <div className={`flex border-r ${LINE}`}>
+            <Txt
+              multiline
+              minH="min-h-[170px]"
+              value={form.specialSkillsHobbies}
+              onChange={(v) => set("specialSkillsHobbies", v)}
+              disabled={d}
+            />
+          </div>
+          <div className={`flex border-r ${LINE}`}>
+            <Txt
+              multiline
+              minH="min-h-[170px]"
+              value={form.nonAcademicDistinctions}
+              onChange={(v) => set("nonAcademicDistinctions", v)}
+              disabled={d}
+            />
+          </div>
+          <div className="flex">
+            <Txt
+              multiline
+              minH="min-h-[170px]"
+              value={form.orgMemberships}
+              onChange={(v) => set("orgMemberships", v)}
+              disabled={d}
+            />
+          </div>
+        </div>
+        <ContinueNote sheet="C11" />
+        <SignatureRow />
+      </Sheet>
+
+      {/* ===================== PAGE 4 ===================== */}
+      <Sheet page={4}>
+        <QRow n="34.">
+          Are you related by consanguinity or affinity to the appointing or recommending authority, or to the chief of
+          bureau or office or to the person who has immediate supervision over you in the Office, Bureau or Department
+          where you will be appointed,
+        </QRow>
+        <QRow
+          letter="a."
+          answer={
+            <YesNo value={form.q34RelatedThirdDegree} onChange={(v) => set("q34RelatedThirdDegree", v)} disabled={d} />
+          }
+        >
+          within the third degree?
+        </QRow>
+        <QRow
+          letter="b."
+          answer={
+            <>
+              <YesNo
+                value={form.q34RelatedFourthDegree}
+                onChange={(v) => set("q34RelatedFourthDegree", v)}
+                disabled={d}
+              />
+              <Detail
+                label="If YES, give details:"
+                value={form.q34Details}
+                onChange={(v) => set("q34Details", v)}
+                disabled={d || !(form.q34RelatedThirdDegree || form.q34RelatedFourthDegree)}
+              />
+            </>
+          }
+        >
+          within the fourth degree (for Local Government Unit - Career Employees)?
+        </QRow>
+
+        <QRow
+          n="35."
+          letter="a."
+          answer={
+            <>
+              <YesNo value={form.q35aAdminOffense} onChange={(v) => set("q35aAdminOffense", v)} disabled={d} />
+              <Detail
+                label="If YES, give details:"
+                value={form.q35aDetails}
+                onChange={(v) => set("q35aDetails", v)}
+                disabled={d || form.q35aAdminOffense !== true}
+              />
+            </>
+          }
+        >
+          Have you ever been found guilty of any administrative offense?
+        </QRow>
+        <QRow
+          letter="b."
+          answer={
+            <>
+              <YesNo value={form.q35bCriminalCharge} onChange={(v) => set("q35bCriminalCharge", v)} disabled={d} />
+              <Detail
+                label="If YES, give details:"
+                value={form.q35bDetails}
+                onChange={(v) => set("q35bDetails", v)}
+                disabled={d || form.q35bCriminalCharge !== true}
+              />
+              <Detail
+                label="Date Filed:"
+                kind="date"
+                value={form.q35bDateFiled}
+                onChange={(v) => set("q35bDateFiled", v)}
+                disabled={d || form.q35bCriminalCharge !== true}
+              />
+              <Detail
+                label="Status of Case/s:"
+                value={form.q35bStatus}
+                onChange={(v) => set("q35bStatus", v)}
+                disabled={d || form.q35bCriminalCharge !== true}
+              />
+            </>
+          }
+        >
+          Have you been criminally charged before any court?
+        </QRow>
+
+        <QRow
+          n="36."
+          answer={
+            <>
+              <YesNo value={form.q36Convicted} onChange={(v) => set("q36Convicted", v)} disabled={d} />
+              <Detail
+                label="If YES, give details:"
+                value={form.q36Details}
+                onChange={(v) => set("q36Details", v)}
+                disabled={d || form.q36Convicted !== true}
+              />
+            </>
+          }
+        >
+          Have you ever been convicted of any crime or violation of any law, decree, ordinance or regulation by any
+          court or tribunal?
+        </QRow>
+
+        <QRow
+          n="37."
+          answer={
+            <>
+              <YesNo value={form.q37Separated} onChange={(v) => set("q37Separated", v)} disabled={d} />
+              <Detail
+                label="If YES, give details:"
+                value={form.q37Details}
+                onChange={(v) => set("q37Details", v)}
+                disabled={d || form.q37Separated !== true}
+              />
+            </>
+          }
+        >
+          Have you ever been separated from the service in any of the following modes: resignation, retirement, dropped
+          from the rolls, dismissal, termination, end of term, finished contract or phased out (abolition) in the public
+          or private sector?
+        </QRow>
+
+        <QRow
+          n="38."
+          letter="a."
+          answer={
+            <>
+              <YesNo value={form.q38aCandidate} onChange={(v) => set("q38aCandidate", v)} disabled={d} />
+              <Detail
+                label="If YES, give details:"
+                value={form.q38aDetails}
+                onChange={(v) => set("q38aDetails", v)}
+                disabled={d || form.q38aCandidate !== true}
+              />
+            </>
+          }
+        >
+          Have you ever been a candidate in a national or local election held within the last year (except Barangay
+          election)?
+        </QRow>
+        <QRow
+          letter="b."
+          answer={
+            <>
+              <YesNo value={form.q38bResigned} onChange={(v) => set("q38bResigned", v)} disabled={d} />
+              <Detail
+                label="If YES, give details:"
+                value={form.q38bDetails}
+                onChange={(v) => set("q38bDetails", v)}
+                disabled={d || form.q38bResigned !== true}
+              />
+            </>
+          }
+        >
+          Have you resigned from the government service during the three (3)-month period before the last election to
+          promote/actively campaign for a national or local candidate?
+        </QRow>
+
+        <QRow
+          n="39."
+          answer={
+            <>
+              <YesNo value={form.q39Immigrant} onChange={(v) => set("q39Immigrant", v)} disabled={d} />
+              <Detail
+                label="If YES, give details (country):"
+                value={form.q39Country}
+                onChange={(v) => set("q39Country", v)}
+                disabled={d || form.q39Immigrant !== true}
+              />
+            </>
+          }
+        >
+          Have you acquired the status of an immigrant or permanent resident of another country?
+        </QRow>
+
+        <QRow n="40.">
+          Pursuant to: (a) Indigenous People&apos;s Act (RA 8371); (b) Magna Carta for Disabled Persons (RA 7277, as
+          amended); and (c) Expanded Solo Parents Welfare Act (RA 11861), please answer the following items:
+        </QRow>
+        <QRow
+          letter="a."
+          answer={
+            <>
+              <YesNo value={form.q40aIndigenous} onChange={(v) => set("q40aIndigenous", v)} disabled={d} />
+              <Detail
+                label="If YES, please specify:"
+                value={form.q40aDetails}
+                onChange={(v) => set("q40aDetails", v)}
+                disabled={d || form.q40aIndigenous !== true}
+              />
+            </>
+          }
+        >
+          Are you a member of any indigenous group?
+        </QRow>
+        <QRow
+          letter="b."
+          answer={
+            <>
+              <YesNo value={form.q40bPwd} onChange={(v) => set("q40bPwd", v)} disabled={d} />
+              <Detail
+                label="If YES, please specify ID No:"
+                value={form.q40bIdNo}
+                onChange={(v) => set("q40bIdNo", v)}
+                disabled={d || form.q40bPwd !== true}
+              />
+            </>
+          }
+        >
+          Are you a person with disability?
+        </QRow>
+        <QRow
+          letter="c."
+          answer={
+            <>
+              <YesNo value={form.q40cSoloParent} onChange={(v) => set("q40cSoloParent", v)} disabled={d} />
+              <Detail
+                label="If YES, please specify ID No:"
+                value={form.q40cIdNo}
+                onChange={(v) => set("q40cIdNo", v)}
+                disabled={d || form.q40cSoloParent !== true}
+              />
+            </>
+          }
+        >
+          Are you a solo parent?
+        </QRow>
+
+        <div className="grid grid-cols-[1fr_190px]">
+          <div className={`min-w-0 border-r ${LINE}`}>
+            <div className={`border-b ${LINE} px-2 py-1 text-[11px]`}>
+              <span className="mr-2">41.</span>REFERENCES{" "}
+              <strong>(Person not related by consanguinity or affinity to applicant /appointee)</strong>
+            </div>
+            <RecordManager
+              items={employee.pdsReferences}
+              typeLabel="reference"
+              addButtonLabel="Add Reference"
+              emptyMessage="No references on file yet."
+              employeeName={employee.displayName}
+              itemLabel={(r) => r.name}
+              fields={[
+                { key: "name", label: "Name", required: true },
+                { key: "address", label: "Office / Residential Address" },
+                { key: "contact", label: "Contact No. and/or Email" },
+              ]}
+              emptyForm={{ name: "", address: "", contact: "" }}
+              columns={[
+                { key: "name", label: "" },
+                { key: "address", label: "" },
+                { key: "contact", label: "" },
+              ]}
+              formStyle={{
+                widths: [34, 40, 26],
+                headRows: 1,
+                minRows: 3,
+                head: (action) => (
+                  <>
+                    <tr>
+                      <th className={thCls}>NAME</th>
+                      <th className={thCls}>OFFICE / RESIDENTIAL ADDRESS</th>
+                      <th className={thCls}>CONTACT NO. AND/OR EMAIL</th>
+                      {action}
+                    </tr>
+                  </>
+                ),
+              }}
+              onAdd={(data) => addPdsReference(employee.id, data)}
+              onUpdate={(recordId, patch) => updatePdsReference(employee.id, recordId, patch)}
+              onDelete={(recordId) => deletePdsReference(employee.id, recordId)}
+              readOnly={readOnly}
+            />
+
+            <div className={`border-y ${LINE} ${LABEL_BG} px-2 py-2 text-[12px] leading-snug`}>
+              <span className="mr-2 text-[11px]">42.</span>I declare under oath that I have personally accomplished this
+              Personal Data Sheet which is a true, correct, and complete statement pursuant to the provisions of
+              pertinent laws, rules, and regulations of the Republic of the Philippines. I authorize the agency
+              head/authorized representative to verify/validate the contents stated herein. I agree that any
+              misrepresentation made in this document and its attachments shall cause the filing of
+              administrative/criminal case/s against me.
+            </div>
+
+            <div className="grid grid-cols-[42%_58%]">
+              <div className={`border-r ${LINE} text-[11px]`}>
+                <div className={`border-b ${LINE} px-1.5 py-1 leading-tight`}>
+                  Government Issued ID (i.e.Passport, GSIS, SSS, PRC, Driver&apos;s License, etc.){" "}
+                  <em className="underline">PLEASE INDICATE ID Number and Date of Issuance</em>
+                </div>
+                <div className={`flex border-b ${LINE}`}>
+                  <div className={`w-[46%] shrink-0 border-r ${LINE} px-1.5 py-1.5`}>Government Issued ID:</div>
+                  <Txt value={form.govIdType} onChange={(v) => set("govIdType", v)} disabled={d} />
+                </div>
+                <div className={`flex border-b ${LINE}`}>
+                  <div className={`w-[46%] shrink-0 border-r ${LINE} px-1.5 py-1.5`}>ID/License/Passport No.:</div>
+                  <Txt value={form.govIdNumber} onChange={(v) => set("govIdNumber", v)} disabled={d} />
+                </div>
+                <div className="flex">
+                  <div className={`w-[46%] shrink-0 border-r ${LINE} px-1.5 py-1.5`}>Date/Place of Issuance:</div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <Txt
+                      kind="date"
+                      value={form.govIdDateIssued}
+                      onChange={(v) => set("govIdDateIssued", v)}
+                      disabled={d}
+                    />
+                    <div className={`flex border-t ${LINE}`}>
+                      <Txt
+                        value={form.govIdPlaceIssued}
+                        onChange={(v) => set("govIdPlaceIssued", v)}
+                        disabled={d}
+                        placeholder="Place"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <div className="flex flex-1 items-center justify-center px-2 text-center text-[10.5px] font-bold text-red-600">
+                  (e-signature/digital certificate)
+                </div>
+                <div className={`border-t ${LINE} ${LABEL_BG} py-0.5 text-center text-[11px]`}>
+                  Signature (Sign inside the box)
+                </div>
+                <div className={`border-t ${LINE} ${LABEL_BG} py-0.5 text-center text-[11px]`}>Date Accomplished</div>
+              </div>
+            </div>
+          </div>
+
+          {/* photo + right thumbmark */}
+          <div className="flex flex-col gap-3 p-2">
+            <div
+              className={`flex h-[178px] flex-col items-center justify-center overflow-hidden border ${LINE} p-1 text-center text-[10px] leading-snug`}
+            >
+              {employee.photoUrl ? (
+                <SkeletonImage
+                  src={employee.photoUrl}
+                  alt={`Photo of ${employee.displayName}`}
+                  wrapperClassName="h-full w-full"
+                  className="h-full w-full object-cover"
+                  skeletonRounded="rounded-none"
+                />
+              ) : (
+                <>
+                  Passport-sized unfiltered digital picture taken within the last 6 months
+                  <br />
+                  4.5 cm. X 3.5 cm
+                  <div className="mt-6 text-neutral-500">PHOTO</div>
+                </>
+              )}
+            </div>
+            <div className={`flex flex-1 flex-col justify-end border ${LINE}`}>
+              <div className={`border-t ${LINE} ${LABEL_BG} py-0.5 text-center text-[11px]`}>Right Thumbmark</div>
+            </div>
+          </div>
+        </div>
+
+        <div className={`border-t-2 border-neutral-800 px-4 py-3 text-center text-[11.5px]`}>
+          SUBSCRIBED AND SWORN to before me this ______________________, affiant exhibiting his/her validly issued
+          government ID as indicated above.
+          <div className={`mx-auto mt-4 w-[52%] border ${LINE}`}>
+            <div className="flex h-16 items-center justify-center text-[10px] font-bold text-red-600">
+              (e-signature/digital certificate except for notary public)
+            </div>
+            <div className={`border-t ${LINE} ${LABEL_BG} py-0.5 text-[12px]`}>Person Administering Oath</div>
+          </div>
+        </div>
+      </Sheet>
 
       {!readOnly && editing && needsCertification && (
         <label className="flex items-start gap-3 rounded-xl border border-border bg-white p-4 cursor-pointer">

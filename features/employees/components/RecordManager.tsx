@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
+import { ContinueNote, LINE, LABEL_BG, tdCls } from "@/features/employees/components/PdsSheet";
 import { Button, Field, inputCls } from "@/shared/components/ui";
 import { TableWrap, Th, Td } from "@/shared/components/Table";
 import Pagination from "@/shared/components/Pagination";
@@ -58,6 +59,23 @@ interface RecordManagerProps<T extends RecordItem> {
   archive?: boolean;
   rowActions?: (item: T) => ReactNode;
   readOnly?: boolean;
+  /**
+   * Render as a section of the printed CS Form 212: official column headings, ruled blank rows and a
+   * red "(Continue on sheet …)" note, instead of the app's regular card table. The add / edit / archive
+   * modals are unchanged.
+   */
+  formStyle?: {
+    /** Column widths in %, one per `columns` entry (the action column is added automatically). */
+    widths: number[];
+    /** Heading row(s). `action` is the extra header cell for the row-action column (null when read-only). */
+    head: (action: ReactNode) => ReactNode;
+    /** Number of heading rows, so the action header can span them. */
+    headRows?: number;
+    /** Always show at least this many rows, padding with blank ruled rows. */
+    minRows?: number;
+    /** Sheet named in the "(Continue on sheet …)" note; omit for no note. */
+    continueSheet?: string;
+  };
 }
 
 type ModalState<T> = { mode: "add" } | { mode: "edit"; item: T } | null;
@@ -84,6 +102,7 @@ export default function RecordManager<T extends RecordItem>({
   archive = false,
   rowActions,
   readOnly = false,
+  formStyle,
 }: RecordManagerProps<T>) {
   const showToast = useToast();
   const cols: RecordColumn<T>[] = columns || fields.map((f) => ({ key: f.key, label: f.label }));
@@ -146,6 +165,162 @@ export default function RecordManager<T extends RecordItem>({
     }
     showToast(`${typeLabel[0].toUpperCase()}${typeLabel.slice(1)} ${archive ? "archived" : "removed"}.`);
     setDeleteTarget(null);
+  }
+
+  const modals = !readOnly && (
+    <>
+      <Modal open={!!modal} onClose={closeModal} title={modal?.mode === "add" ? addButtonLabel : `Edit ${typeLabel}`}>
+        <form onSubmit={handleSave}>
+          {fields
+            .filter((f) => !f.showWhen || f.showWhen(form))
+            .map((f) => (
+              <Field key={f.key} label={f.label} hint={f.hint}>
+                {f.type === "select" ? (
+                  <select
+                    className={inputCls}
+                    value={(form[f.key] as string) ?? ""}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  >
+                    {(f.options || []).map((o) => {
+                      const opt = typeof o === "string" ? { value: o, label: o } : o;
+                      return (
+                        <option key={String(opt.value)} value={opt.value}>
+                          {opt.label ?? opt.value}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : f.type === "textarea" ? (
+                  <textarea
+                    className={`${inputCls} min-h-[90px] py-2.5`}
+                    value={(form[f.key] as string) ?? ""}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                ) : f.type === "date" ? (
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={toInputDate(form[f.key] as string)}
+                    onChange={(e) => setForm({ ...form, [f.key]: fromInputDate(e.target.value) })}
+                    required={f.required}
+                  />
+                ) : (
+                  <input
+                    type={f.type === "number" ? "number" : "text"}
+                    className={inputCls}
+                    value={(form[f.key] as string | number) ?? ""}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    required={f.required}
+                  />
+                )}
+              </Field>
+            ))}
+          <Button type="submit" className="w-full mt-2" disabled={saving}>
+            {saving ? "Saving…" : modal?.mode === "add" ? addButtonLabel : "Save Changes"}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={`${verb} ${typeLabel}`}>
+        <p className="text-ink mb-1">
+          {archive ? "Archive" : "Remove"} <strong>{deleteTarget ? itemLabel(deleteTarget) : ""}</strong> from{" "}
+          {employeeName}&apos;s {typeLabel} records?
+        </p>
+        <p className="text-[0.86rem] text-ink-muted mb-5">
+          {archive
+            ? "It will be hidden from this employee's file but kept in the system records."
+            : "This cannot be undone."}
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+            {deleting ? (archive ? "Archiving…" : "Deleting…") : verb}
+          </Button>
+        </div>
+      </Modal>
+    </>
+  );
+
+  if (formStyle) {
+    const blanks = Math.max(0, (formStyle.minRows ?? 0) - items.length);
+    const actionTh = readOnly ? null : (
+      <th rowSpan={formStyle.headRows ?? 1} className={`border ${LINE} ${LABEL_BG} w-[68px]`} aria-label="Actions" />
+    );
+    return (
+      <div>
+        {!readOnly && (
+          <div className={`flex justify-end border-b ${LINE} bg-amber-50 px-2 py-1`}>
+            <button
+              type="button"
+              onClick={openAdd}
+              className="inline-flex cursor-pointer items-center gap-1 rounded border border-neutral-700 bg-white px-2 py-0.5 text-[11.5px] font-semibold text-black hover:bg-neutral-100"
+            >
+              <Plus size={13} />
+              {addButtonLabel}
+            </button>
+          </div>
+        )}
+        <table className="w-full table-fixed border-collapse">
+          <colgroup>
+            {formStyle.widths.map((w, i) => (
+              <col key={i} style={{ width: `${w}%` }} />
+            ))}
+            {!readOnly && <col style={{ width: 68 }} />}
+          </colgroup>
+          <thead>{formStyle.head(actionTh)}</thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                {cols.map((c) => (
+                  <td key={c.key} className={tdCls}>
+                    {c.render ? c.render(item) : ((item as Record<string, unknown>)[c.key] as ReactNode) || ""}
+                  </td>
+                ))}
+                {!readOnly && (
+                  <td className={`${tdCls} text-center`}>
+                    <div className="flex items-center justify-center gap-1">
+                      {rowActions && rowActions(item)}
+                      <button
+                        type="button"
+                        title={`Edit ${typeLabel}`}
+                        aria-label={`Edit ${typeLabel}`}
+                        onClick={() => openEdit(item)}
+                        className="cursor-pointer rounded p-1 text-navy hover:bg-navy-100"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      {onDelete && (
+                        <button
+                          type="button"
+                          title={`${verb} ${typeLabel}`}
+                          aria-label={`${verb} ${typeLabel}`}
+                          onClick={() => setDeleteTarget(item)}
+                          className="cursor-pointer rounded p-1 text-danger-text hover:bg-danger-bg"
+                        >
+                          {archive ? <Archive size={14} /> : <Trash2 size={14} />}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {Array.from({ length: blanks }).map((_, r) => (
+              <tr key={`blank-${r}`}>
+                {cols.map((c) => (
+                  <td key={c.key} className={`${tdCls} h-[26px]`} />
+                ))}
+                {!readOnly && <td className={tdCls} />}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {formStyle.continueSheet && <ContinueNote sheet={formStyle.continueSheet} />}
+        {modals}
+      </div>
+    );
   }
 
   return (
