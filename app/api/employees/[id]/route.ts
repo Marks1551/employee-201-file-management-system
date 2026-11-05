@@ -39,12 +39,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   // Faculty can edit only the PDS details of their own record — nothing else
   // (position, department, status, etc. stay HR-only). HR is notified.
   if (user.role === "faculty") {
+    // Allowed: the PDS blob, plus civil status (item 6 of the PDS). Everything else is HR-only.
     const keys = Object.keys(patch);
-    if (keys.length !== 1 || keys[0] !== "pds") {
+    if (keys.length === 0 || keys.some((k) => k !== "pds" && k !== "civilStatus")) {
       return NextResponse.json(
         { error: "You can only edit your PDS details. Please contact HR to change other information." },
         { status: 403 },
       );
+    }
+    const civilStatusChanged = "civilStatus" in patch && (patch.civilStatus || null) !== (existing.civilStatus || null);
+    if (civilStatusChanged) {
+      await updateEmployee(id, { civilStatus: patch.civilStatus || null });
     }
     const incoming = { ...((patch.pds || {}) as Record<string, unknown>) };
     // The employee's name is HR-only: faculty can edit the rest of their PDS, but never the
@@ -52,8 +57,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     for (const k of NAME_KEYS) delete incoming[k];
     const before = { ...emptyPdsDetails(), ...existing.pds } as Record<string, unknown>;
     const changed = Object.keys(incoming).some((k) => JSON.stringify(incoming[k]) !== JSON.stringify(before[k]));
-    if (changed) {
-      await updateEmployeePds(id, incoming);
+    if (changed) await updateEmployeePds(id, incoming);
+    if (changed || civilStatusChanged) {
       await addAuditLog(user.name, roleLabel(user.role), `Updated their own PDS details (#${existing.employeeNumber})`);
       await notifyPdsUpdated(id, "PDS details");
     }

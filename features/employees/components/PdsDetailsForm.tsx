@@ -82,8 +82,8 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
   } = useApp();
   const showToast = useToast();
   // HR/admin can edit every field on the PDS, including the employee's name and the core
-  // personal details. Faculty can edit their own PDS details but never their name — and the
-  // server enforces that too.
+  // personal details. Faculty can edit their own PDS details (including civil status) but never
+  // their name — and the server enforces that too.
   const canEditCore = currentUser?.role === "hr" || currentUser?.role === "admin";
   const coreFrom = (e: Employee) => ({
     dob: e.dob,
@@ -134,7 +134,10 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
     }
     setSaving(true);
     const pdsOut = form.permanentSameAsResidential ? { ...form, permanentAddress: form.residentialAddress } : form;
-    const result = await updateEmployee(employee.id, canEditCore ? { pds: pdsOut, ...core } : { pds: pdsOut });
+    const result = await updateEmployee(
+      employee.id,
+      canEditCore ? { pds: pdsOut, ...core } : { pds: pdsOut, civilStatus: core.civilStatus },
+    );
     setSaving(false);
     if (!result.ok) {
       showToast(result.error || "Could not save your PDS details. Please try again.", "error");
@@ -311,7 +314,7 @@ export default function PdsDetailsForm({ employee, readOnly = false, canArchiveT
                       key={o}
                       label={o === "Others" ? "Other/s:" : o}
                       checked={core.civilStatus === o}
-                      disabled={dn}
+                      disabled={d}
                       onChange={() => setCore((c) => ({ ...c, civilStatus: c.civilStatus === o ? null : o }))}
                     />
                   ))}
