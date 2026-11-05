@@ -7,7 +7,7 @@ import { Card, Button } from "@/shared/components/ui";
 import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { exportEmployeeWorkbook } from "@/shared/lib/employeeWorkbook";
-import { exportEmployeeListReport, exportDocumentStatusReport } from "@/shared/lib/reportsWorkbook";
+import { exportEmployeeListReport } from "@/shared/lib/reportsWorkbook";
 import { useDepartments } from "@/shared/lib/useDepartments";
 
 const NO_DEPARTMENT = "(No department)";
@@ -40,10 +40,31 @@ export default function Reports() {
       .filter((o) => o.count > 0 || departments.includes(o.name));
   }, [departments, employees]);
 
-  const filtered = useMemo(
-    () => (selected.length ? employees.filter((e) => selected.includes(e.department || NO_DEPARTMENT)) : employees),
-    [employees, selected],
-  );
+  // Keeps the first of any duplicates and drops the later ones: repeated employees (same
+  // employee number) and repeated documents under one employee (same document name).
+  const filtered = useMemo(() => {
+    const scoped = selected.length
+      ? employees.filter((e) => selected.includes(e.department || NO_DEPARTMENT))
+      : employees;
+    const seenEmployees = new Set<string>();
+    const unique: typeof scoped = [];
+    scoped.forEach((e) => {
+      const key = (e.employeeNumber || "").trim().toLowerCase();
+      if (key) {
+        if (seenEmployees.has(key)) return;
+        seenEmployees.add(key);
+      }
+      const seenDocs = new Set<string>();
+      const documents = e.documents.filter((d) => {
+        const docKey = d.name.trim().toLowerCase();
+        if (seenDocs.has(docKey)) return false;
+        seenDocs.add(docKey);
+        return true;
+      });
+      unique.push({ ...e, documents });
+    });
+    return unique;
+  }, [employees, selected]);
   const scopeLabel = selected.length ? selected.join(", ") : "";
   const fileSuffix = selected.length ? `-${selected.map(slug).join("-")}`.slice(0, 80) : "";
   const logScope = selected.length ? ` (${scopeLabel})` : "";
@@ -57,13 +78,6 @@ export default function Reports() {
     setLastGenerated(`Employee List Report${logScope}`);
     if (currentUser) logAction(currentUser.name, "HR Personnel", `Generated the Employee List Report${logScope}`);
     showToast("Employee List Report downloaded.");
-  }
-
-  async function generateDocStatus() {
-    await exportDocumentStatusReport(filtered, `document-status-report${fileSuffix}.xlsx`, scopeLabel);
-    setLastGenerated(`Document Status Report${logScope}`);
-    if (currentUser) logAction(currentUser.name, "HR Personnel", `Generated the Document Status Report${logScope}`);
-    showToast("Document Status Report downloaded.");
   }
 
   async function generateEmployeeWorkbook() {
@@ -131,7 +145,7 @@ export default function Reports() {
           })}
         </div>
         <p className="m-0 mt-2.5 text-[0.8rem] text-ink-faint">
-          Pick one or more departments. This applies to all three reports below.
+          Pick one or more departments. This applies to both reports below.
         </p>
       </Card>
 
@@ -145,20 +159,6 @@ export default function Reports() {
             Every employee's number, department, position, and hire date (for the departments selected above).
           </p>
           <Button onClick={generateEmployeeList} disabled={filtered.length === 0} className="mt-3">
-            <Download size={18} />
-            Download Excel
-          </Button>
-        </Card>
-
-        <Card className="flex flex-col">
-          <div className="w-12 h-12 rounded-2xl bg-hr-bg text-hr-text flex items-center justify-center mb-3.5">
-            <FileBarChart size={24} />
-          </div>
-          <h3 className="mb-1">Document Status Report</h3>
-          <p className="text-ink-muted text-[0.9rem] flex-1">
-            Every required document per employee, with upload status.
-          </p>
-          <Button onClick={generateDocStatus} disabled={filtered.length === 0} className="mt-3">
             <Download size={18} />
             Download Excel
           </Button>
