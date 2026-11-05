@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { UploadCloud, Paperclip, Eye } from "lucide-react";
+import { UploadCloud, Paperclip, Eye, X, ChevronUp, ChevronDown } from "lucide-react";
 import Layout from "@/shared/components/Layout";
 import NoEmployeeLinked from "@/features/employees/components/NoEmployeeLinked";
 import InactiveRecordNotice, { isRecordInactive } from "@/features/employees/components/InactiveRecordNotice";
@@ -11,6 +11,9 @@ import { useApp } from "@/shared/context/AppContext";
 import { useToast } from "@/shared/context/ToastContext";
 import { DocumentExpiryCell } from "@/features/employees/components/DocumentExpiry";
 import { documentNeedsExpiry } from "@/shared/lib/documentExpiry";
+import { imagesToPdf } from "@/shared/lib/imagesToPdf";
+
+const MAX_BYTES = 10 * 1024 * 1024;
 
 // Always available regardless of HR's requirements (not tied to a required document).
 const generalTypes = ["Training Certificate", "Other"];
@@ -19,7 +22,7 @@ export default function SubmitDocument() {
   const { currentEmployee, submitDocument, ready } = useApp();
   const showToast = useToast();
   const [docType, setDocType] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [expiresOn, setExpiresOn] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,8 +60,9 @@ export default function SubmitDocument() {
   }, [docType, options]);
 
   const needsExpiry = documentNeedsExpiry(docType);
-  // Multi-page documents must go in as ONE file, so ask for a single merged PDF.
-  const isMultiPage = /transcript|\bTOR\b/i.test(docType);
+  // Any document may be several pages: let the user pick many images at once and merge them into ONE PDF.
+  const isMultiPage = true;
+  const file = files[0] ?? null;
 
   if (!ready) return null;
   if (!currentEmployee) return <NoEmployeeLinked eyebrow="Faculty" title="Submit a Document" />;
@@ -75,25 +79,65 @@ export default function SubmitDocument() {
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    setFile(e.target.files?.[0] || null);
+    const picked = Array.from(e.target.files || []);
+    e.target.value = ""; // allow picking the same file again
+    if (!picked.length) return;
+    if (!isMultiPage) {
+      setFiles([picked[0]]);
+      return;
+    }
+    // Multi-page document: several images are added in order; a PDF must be the only file.
+    const isPdf = (f: File) => f.type === "application/pdf";
+    const next = [...files, ...picked];
+    if (next.some(isPdf) && next.length > 1) {
+      showToast("Upload either one PDF or several images — not both.");
+      return;
+    }
+    setFiles(next);
+  }
+
+  function moveFile(i: number, dir: -1 | 1) {
+    setFiles((fs) => {
+      const j = i + dir;
+      if (j < 0 || j >= fs.length) return fs;
+      const copy = [...fs];
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !currentEmployee) return;
+    if (!files.length || !currentEmployee) return;
     if (needsExpiry && !expiresOn) {
       showToast(`Please enter the expiry date of your ${docType}.`);
       return;
     }
     setSubmitting(true);
-    const result = await submitDocument(currentEmployee.id, docType, file, needsExpiry ? expiresOn : undefined);
+    let upload: File = files[0];
+    if (files.length > 1) {
+      // Several page images → one PDF (the system keeps a single file per document).
+      try {
+        upload = await imagesToPdf(files, `${docType.replace(/[^\w-]+/g, "_")}.pdf`);
+      } catch (err) {
+        setSubmitting(false);
+        showToast(err instanceof Error ? err.message : "Could not combine the images. Please try again.");
+        return;
+      }
+    }
+    if (upload.size > MAX_BYTES) {
+      setSubmitting(false);
+      showToast("The files are too large (max 10 MB in total). Use fewer or smaller images, or upload a PDF.");
+      return;
+    }
+    const result = await submitDocument(currentEmployee.id, docType, upload, needsExpiry ? expiresOn : undefined);
     setSubmitting(false);
     if (!result.ok) {
       showToast(result.error);
       return;
     }
     showToast("Document submitted. HR will review your upload shortly.");
-    setFile(null);
+    setFiles([]);
     setExpiresOn("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -131,7 +175,15 @@ export default function SubmitDocument() {
                 ))}
               </select>
             </Field>
-            <Field label="Choose file" htmlFor={fileInputId} hint="Accepted formats: PDF, JPG, PNG. Maximum 10 MB.">
+            <Field
+              label="Choose file"
+              htmlFor={fileInputId}
+              hint={
+                isMultiPage
+                  ? "Accepted formats: PDF, JPG, PNG, WEBP. Select as many images as needed. Maximum 10 MB in total."
+                  : "Accepted formats: PDF, JPG, PNG. Maximum 10 MB."
+              }
+            >
               <button
                 type="button"
                 id={fileInputId}
@@ -139,21 +191,64 @@ export default function SubmitDocument() {
                 className={`${inputCls} flex items-center gap-2 text-left ${file ? "text-ink" : "text-ink-faint"} bg-cream cursor-pointer`}
               >
                 <Paperclip size={18} className="flex-shrink-0 text-ink-faint" />
-                {file?.name || "No file chosen"}
+                {files.length > 1 ? `${files.length} images selected` : file?.name || "No file chosen"}
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="application/pdf,image/jpeg,image/png"
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                multiple={isMultiPage}
                 className="hidden"
                 onChange={handleFileChange}
               />
             </Field>
             {isMultiPage && (
-              <p className="mt-0 mb-4 p-3 rounded-xl bg-navy-100 text-navy text-[0.84rem]">
-                <strong>Note:</strong> This document has several pages. Please merge all pages (e.g. all 4 pages of your
-                TOR) into <strong>one PDF file</strong> before uploading. Only one file can be submitted per document.
-              </p>
+              <>
+                {files.length > 0 && !(files.length === 1 && files[0].type === "application/pdf") && (
+                  <ol className="list-none m-0 mb-3 p-0 flex flex-col gap-1.5">
+                    {files.map((f, i) => (
+                      <li
+                        key={`${f.name}-${i}`}
+                        className="flex items-center gap-2 rounded-xl bg-cream px-3 py-2 text-[0.84rem]"
+                      >
+                        <span className="font-semibold text-ink-muted w-12 flex-shrink-0">Page {i + 1}</span>
+                        <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                        <button
+                          type="button"
+                          aria-label="Move up"
+                          disabled={i === 0}
+                          onClick={() => moveFile(i, -1)}
+                          className="p-0.5 disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronUp size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Move down"
+                          disabled={i === files.length - 1}
+                          onClick={() => moveFile(i, 1)}
+                          className="p-0.5 disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronDown size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Remove"
+                          onClick={() => setFiles((fs) => fs.filter((_, k) => k !== i))}
+                          className="p-0.5 text-danger-text cursor-pointer"
+                        >
+                          <X size={16} />
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <p className="mt-0 mb-4 p-3 rounded-xl bg-navy-100 text-navy text-[0.84rem]">
+                  <strong>Note:</strong> You can select <strong>multiple images</strong> at once (one per page) and
+                  reorder them with the arrows; we will combine them into one file. You can also upload{" "}
+                  <strong>one PDF</strong> instead.
+                </p>
+              </>
             )}
             {needsExpiry && (
               <Field

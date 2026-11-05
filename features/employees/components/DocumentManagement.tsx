@@ -1,5 +1,6 @@
 "use client";
 
+import { combinePickedFiles } from "@/shared/lib/imagesToPdf";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { Search, Eye, FilePlus2, Trash2, ListChecks, ChevronDown } from "lucide-react";
@@ -190,11 +191,17 @@ export default function DocumentManagement() {
   }
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const picked = Array.from(e.target.files || []);
     e.target.value = "";
     const row = pendingRow.current;
     pendingRow.current = null;
-    if (!file || !row) return;
+    if (!picked.length || !row) return;
+    const combined = await combinePickedFiles(picked, row.name);
+    if ("error" in combined) {
+      showToast(combined.error);
+      return;
+    }
+    const file = combined.file;
     // PRC and NBI Clearance need an expiry date first.
     if (documentNeedsExpiry(row.name)) {
       setExpiryUpload({ row, file });
@@ -534,6 +541,7 @@ export default function DocumentManagement() {
         ref={fileInputRef}
         type="file"
         accept="application/pdf,image/jpeg,image/png,image/webp"
+        multiple
         className="hidden"
         onChange={handleFileChange}
       />

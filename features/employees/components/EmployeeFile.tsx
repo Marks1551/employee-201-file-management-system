@@ -1,5 +1,6 @@
 "use client";
 
+import { combinePickedFiles } from "@/shared/lib/imagesToPdf";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -146,13 +147,19 @@ export default function HREmployeeFile() {
   }
 
   async function handleDocFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const picked = Array.from(e.target.files || []);
     e.target.value = "";
     const docId = pendingDocId.current;
     pendingDocId.current = null;
-    if (!file || !docId || !employee) return;
-    // PRC and NBI Clearance need an expiry date first.
+    if (!picked.length || !docId || !employee) return;
     const doc = employee.documents.find((d) => d.id === docId);
+    const combined = await combinePickedFiles(picked, doc?.name ?? "document");
+    if ("error" in combined) {
+      showToast(combined.error);
+      return;
+    }
+    const file = combined.file;
+    // PRC and NBI Clearance need an expiry date first.
     if (doc && documentNeedsExpiry(doc.name)) {
       setExpiryUpload({ docId, file });
       return;
@@ -395,6 +402,7 @@ export default function HREmployeeFile() {
             ref={docInputRef}
             type="file"
             accept="application/pdf,image/jpeg,image/png,image/webp"
+            multiple
             className="hidden"
             onChange={handleDocFileChange}
           />
