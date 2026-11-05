@@ -16,6 +16,22 @@ import { DocumentExpiryCell, ExpiryDateModal } from "@/features/employees/compon
 import { documentExpiry, documentNeedsExpiry } from "@/shared/lib/documentExpiry";
 import type { DocumentRecord } from "@/shared/types";
 
+/** Parses stamps like "Nov 5, 8:25 PM" (no year stored) or full dates into a sortable time. */
+function uploadTime(value: string | null): number {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const now = new Date();
+  const year = now.getFullYear();
+  const hasYear = /\b\d{4}\b/.test(value);
+  const text = hasYear ? value : value.replace(/^([A-Za-z]+\s+\d{1,2}),?/, `$1, ${year},`);
+  let t = Date.parse(text);
+  if (Number.isNaN(t)) return Number.POSITIVE_INFINITY;
+  // A year-less stamp that lands in the future belongs to last year.
+  if (!hasYear && t > now.getTime() + 24 * 60 * 60 * 1000) {
+    t = Date.parse(text.replace(String(year), String(year - 1)));
+  }
+  return t;
+}
+
 interface DocumentRow extends DocumentRecord {
   empId: string;
   empName: string;
@@ -149,7 +165,11 @@ export default function DocumentManagement() {
         });
       });
     });
-    return list;
+    // First uploaded on top; documents not uploaded yet go to the bottom.
+    return list
+      .map((r, i) => ({ r, i, t: uploadTime(r.uploaded ?? r.submitted) }))
+      .sort((a, b) => (a.t === b.t ? a.i - b.i : a.t < b.t ? -1 : 1))
+      .map((x) => x.r);
   }, [employees]);
 
   const filtered = useMemo(() => {

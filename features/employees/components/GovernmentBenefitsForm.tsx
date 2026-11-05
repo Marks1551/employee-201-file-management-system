@@ -99,7 +99,7 @@ export default function GovernmentBenefitsForm({ employee, readOnly = false }: P
           Government Membership IDs
         </p>
         <div className="grid gap-4 md:grid-cols-3">
-          <Field label="UMID ID No.">
+          <Field label="GSIS/UMID/SSS ID No.">
             <input
               disabled={d}
               className={inputCls}
