@@ -22,7 +22,7 @@ import { DEACTIVATION_REASONS, EMPLOYMENT_STATUSES } from "@/shared/lib/roles";
 import DepartmentSelect from "@/shared/components/DepartmentSelect";
 import SkeletonImage, { SkeletonFrame } from "@/shared/components/SkeletonImage";
 import { downloadHref } from "@/shared/lib/downloadUrl";
-import { exportEmployeeProfile } from "@/shared/lib/employeeExport";
+import { printPdsSheets } from "@/shared/lib/pdsSheetPrint";
 import { getNameParts, composeFullName, composeDisplayName, type NameParts } from "@/shared/lib/names";
 import { documentCompletion } from "@/shared/lib/documentCompletion";
 import type { Employee, DocumentRecord, TrainingRecord } from "@/shared/types";
@@ -283,8 +283,12 @@ export default function HREmployeeFile() {
 
   function handleExportProfile() {
     if (!employee) return;
-    exportEmployeeProfile(employee);
-    showToast("Opening the employee 201 file summary for export…");
+    // Same function as "Print PDS": prints the employee's CS Form 212 Personal Data Sheet.
+    if (!printPdsSheets()) {
+      showToast("Could not open the Personal Data Sheet for export. Please try again.", "error");
+      return;
+    }
+    showToast("Opening the Personal Data Sheet for export…");
   }
 
   async function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
@@ -437,7 +441,7 @@ export default function HREmployeeFile() {
         {pendingCount > 0 && <Tag kind="warn">{pendingCount} awaiting review</Tag>}
         <Button variant="secondary" onClick={handleExportProfile}>
           <FileDown size={18} />
-          Export
+          Export PDS
         </Button>
         <Button variant="secondary" onClick={openEdit}>
           <Pencil size={18} />
@@ -916,6 +920,12 @@ export default function HREmployeeFile() {
           },
         ]}
       />
+
+      {/* Off-screen copy of the PDS sheets so "Export PDS" works even when the PDS tab isn't open. When the
+          tab is open its own (earlier) copy is the one printed, so unsaved edits are included. */}
+      <div aria-hidden="true" className="pointer-events-none absolute left-[-99999px] top-0 w-[1100px]">
+        <PdsDetailsForm employee={employee} readOnly />
+      </div>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Edit — ${employee.displayName}`} wide>
         {form && (
