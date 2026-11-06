@@ -72,8 +72,28 @@ export class SheetEditor {
     this.tail = "</sheetData>" + this.tail;
   }
 
-  /** Sets a cell's value, keeping its existing style. null/undefined/"" clears the value. */
-  set(ref: string, value: CellValue): void {
+  /** True once any cell has been written (used to skip untouched continuation sheets). */
+  hasEdits(): boolean {
+    for (const row of this.rows.values()) if (row.touched) return true;
+    return false;
+  }
+
+  /** Sets a row's height in points. */
+  setRowHeight(row: number, height: number): void {
+    let model = this.rows.get(row);
+    if (!model) {
+      model = { attrs: ` r="${row}"`, cells: new Map(), touched: true };
+      this.rows.set(row, model);
+    }
+    model.touched = true;
+    model.attrs = model.attrs.replace(/\s(?:ht|customHeight)="[^"]*"/g, "") + ` ht="${height}" customHeight="1"`;
+  }
+
+  /**
+   * Sets a cell's value, keeping its existing style (or using `style`, a cellXfs index, when given).
+   * null/undefined/"" clears the value.
+   */
+  set(ref: string, value: CellValue, style?: number): void {
     const { col, row } = parseCellRef(ref);
     let rowModel = this.rows.get(row);
     if (!rowModel) {
@@ -82,8 +102,9 @@ export class SheetEditor {
     }
     rowModel.touched = true;
     const existing = rowModel.cells.get(col);
-    const style = existing ? /\bs="(\d+)"/.exec(existing.slice(0, existing.indexOf(">") + 1))?.[1] : undefined;
-    const base = `<c r="${ref.toUpperCase()}"${style ? ` s="${style}"` : ""}`;
+    const keptStyle = existing ? /\bs="(\d+)"/.exec(existing.slice(0, existing.indexOf(">") + 1))?.[1] : undefined;
+    const useStyle = style !== undefined ? String(style) : keptStyle;
+    const base = `<c r="${ref.toUpperCase()}"${useStyle ? ` s="${useStyle}"` : ""}`;
     let xml: string;
     if (value === null || value === undefined || value === "") {
       xml = `${base}/>`;

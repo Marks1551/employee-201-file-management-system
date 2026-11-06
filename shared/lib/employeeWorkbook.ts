@@ -1,43 +1,84 @@
-// Builds a styled "Employee 201 File" workbook: an "Employees" list sheet
-// with a clickable "View" link per row, and one detail sheet per employee
-// laid out like a colored HR profile card (banner header with photo, name,
-// and position; labeled fields; and record tables), with a link back to
-// the list. Uses ExcelJS so real fills, fonts, borders, and an embedded
-// photo carry over into the downloaded .xlsx — plain SheetJS (used
-// elsewhere in this app for exports) can't write cell styling.
+// Builds the "Employee 201 File Workbook": one .xlsx with an "Employees" list sheet and,
+// for every employee, their actual Personal Data Sheet — the official CS Form No. 212
+// (Revised 2026), filled in with their records.
+//
+// Clicking "View PDS →" on the list jumps to that employee's page 1 (C1). Their pages
+// C1–C4 follow it (plus any continuation sheets C5–C11 the employee's records overflow
+// onto), and each page has a "← Back to Employee List" link.
+//
+// How it works: every employee's pages are copies of the real template's sheets (same
+// styles.xml, so formatting, merged cells, checkboxes, the country dropdown, text boxes
+// and print areas carry over exactly). The template is opened with JSZip and its parts
+// are cloned under new names — nothing is re-drawn — then the value cells are filled by
+// the same code the single-employee PDS export uses (see pdsWorkbook.ts).
 
-import ExcelJS from "exceljs";
-import { certStatusText } from "@/shared/lib/trainingExpiry";
-import { expiryText } from "@/shared/lib/documentExpiry";
+import JSZip from "jszip";
 import type { Employee } from "@/shared/types";
-import { COLOR, thinBorder, allBorders, setColumnWidths, downloadWorkbookBuffer } from "@/shared/lib/xlsxTheme";
+import { escapeXml, SheetEditor } from "@/shared/lib/xlsxSheetEditor";
+import {
+  PDS_TEMPLATE_URL,
+  SHEET_PART,
+  addPhoto,
+  fillPdsForm,
+  loadPhoto,
+  put,
+  syncControls,
+  type PdsPhoto,
+  type SheetKey,
+} from "@/shared/lib/pdsWorkbook";
+import { downloadWorkbookBuffer } from "@/shared/lib/xlsxTheme";
 
 const EMPLOYEES_SHEET = "Employees";
-const COLS = 6; // A..F
+
+/** The pages of the form, in order. C1–C4 are always included; the rest only when used. */
+const PAGE_ORDER: SheetKey[] = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11"];
+const ALWAYS: SheetKey[] = ["C1", "C2", "C3", "C4"];
+
+/** Print areas of the template's pages (the template's own settings). */
+const PRINT_AREA: Partial<Record<SheetKey, string>> = {
+  C1: "$A$1:$N$62",
+  C2: "$A$2:$M$44",
+  C3: "$A$1:$K$48",
+  C4: "$A$1:$N$71",
+  C5: "$A$2:$K$51",
+  C6: "$A$2:$M$41",
+  C7: "$A$2:$L$25",
+  C9: "$A$2:$K$30",
+  C10: "$A$1:$K$36",
+  C11: "$A$1:$K$36",
+};
+
+/** Where each page's "back to list" link sits: a free cell to the right of the printed area. */
+const BACK_LINK_REF: Record<SheetKey, string> = {
+  C1: "R2", // P:Q are hidden on this page
+  C2: "P2",
+  C3: "P2",
+  C4: "P2",
+  C5: "P2",
+  C6: "P2",
+  C7: "Q2", // column O holds this page's country list
+  C8: "P2",
+  C9: "P2",
+  C10: "P2",
+  C11: "P2",
+};
+
+const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+
+// ---------------------------------------------------------------------------
+// Names
+// ---------------------------------------------------------------------------
 
 /** Excel sheet names: <=31 chars, no  \ / ? * [ ] : , can't be blank. */
-function sanitizeSheetName(raw: string): string {
+function cleanSheetName(raw: string): string {
   const cleaned = raw
     .replace(/[\\/?*[\]:]/g, "-")
     .replace(/^'+|'+$/g, "")
     .trim();
-  return (cleaned || "Employee").slice(0, 31);
-}
-
-function uniqueSheetName(base: string, used: Set<string>): string {
-  let name = sanitizeSheetName(base);
-  let n = 2;
-  while (used.has(name.toLowerCase())) {
-    const suffix = ` (${n})`;
-    name = sanitizeSheetName(base).slice(0, 31 - suffix.length) + suffix;
-    n += 1;
-  }
-  used.add(name.toLowerCase());
-  return name;
-}
-
-function internalLink(sheetName: string): string {
-  return `#'${sheetName.replace(/'/g, "''")}'!A1`;
+  return cleaned || "Employee";
 }
 
 function statusLabel(employee: Employee): string {
@@ -47,145 +88,151 @@ function statusLabel(employee: Employee): string {
   return "Active";
 }
 
-/** Fetches an employee photo and returns it as a base64 data URL ExcelJS can embed, or null if unavailable. */
-async function loadPhotoAsBase64(
-  photoUrl: string,
-): Promise<{ base64: string; extension: "jpeg" | "png" | "gif" } | null> {
-  try {
-    const res = await fetch(photoUrl);
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") || "";
-    const extension = contentType.includes("png")
-      ? "png"
-      : contentType.includes("gif")
-        ? "gif"
-        : contentType.includes("jpeg") || contentType.includes("jpg")
-          ? "jpeg"
-          : null;
-    if (!extension) return null;
-    const blob = await res.blob();
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-    return { base64, extension };
-  } catch {
-    return null;
-  }
+/** Quotes a sheet name for use inside a formula/link: 'My Sheet'. */
+function quoteSheet(name: string): string {
+  return `'${name.replace(/'/g, "''")}'`;
 }
 
-function bannerRow(
-  ws: ExcelJS.Worksheet,
-  row: number,
-  text: string,
-  opts: { size: number; bold: boolean; fill: string; height?: number },
-) {
-  ws.mergeCells(row, 1, row, COLS);
-  const cell = ws.getCell(row, 1);
-  cell.value = text;
-  cell.font = { name: "Calibri", size: opts.size, bold: opts.bold, color: { argb: COLOR.white } };
-  cell.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
-  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
-  ws.getRow(row).height = opts.height ?? 22;
+// ---------------------------------------------------------------------------
+// Styles — a few cell formats appended to the template's own styles.xml
+// ---------------------------------------------------------------------------
+
+interface ListStyles {
+  title: number;
+  head: number;
+  body: number;
+  bodyAlt: number;
+  link: number;
+  note: number;
+  back: number;
 }
 
-function sectionBar(ws: ExcelJS.Worksheet, row: number, title: string) {
-  ws.mergeCells(row, 1, row, COLS);
-  const cell = ws.getCell(row, 1);
-  cell.value = title.toUpperCase();
-  cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: COLOR.white } };
-  cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.banner } };
-  ws.getRow(row).height = 20;
+// Same wine/maroon palette as the other report exports (see xlsxTheme.ts).
+const C = {
+  banner: "FF7A3350",
+  fieldBg: "FFF8E6EC",
+  alt: "FFFDF7F9",
+  border: "FFE3C1CC",
+  text: "FF3D1524",
+  muted: "FF7A5A65",
+  white: "FFFFFFFF",
+};
+
+function appendStyles(stylesXml: string): { xml: string; ids: ListStyles } {
+  let xml = stylesXml;
+  const append = (tag: string, items: string[]): number => {
+    const countRe = new RegExp(`<${tag} count="(\\d+)"`);
+    const base = Number(countRe.exec(xml)![1]);
+    xml = xml.replace(countRe, `<${tag} count="${base + items.length}"`);
+    xml = xml.replace(`</${tag}>`, `${items.join("")}</${tag}>`);
+    return base;
+  };
+
+  const font = (opts: { b?: boolean; i?: boolean; u?: boolean; sz: number; color: string }) =>
+    `<font>${opts.b ? "<b/>" : ""}${opts.i ? "<i/>" : ""}${opts.u ? "<u/>" : ""}<sz val="${opts.sz}"/><color rgb="${opts.color}"/><name val="Calibri"/><family val="2"/></font>`;
+  const f0 = append("fonts", [
+    font({ b: true, sz: 13, color: C.white }), // title
+    font({ b: true, sz: 10.5, color: C.white }), // header
+    font({ sz: 10, color: C.text }), // body
+    font({ b: true, u: true, sz: 10, color: C.banner }), // link
+    font({ i: true, sz: 9.5, color: C.muted }), // note
+  ]);
+
+  const fill = (rgb: string) =>
+    `<fill><patternFill patternType="solid"><fgColor rgb="${rgb}"/><bgColor indexed="64"/></patternFill></fill>`;
+  const fl0 = append("fills", [fill(C.banner), fill(C.fieldBg), fill(C.alt)]);
+
+  const side = (n: string) => `<${n} style="thin"><color rgb="${C.border}"/></${n}>`;
+  const b0 = append("borders", [
+    `<border>${side("left")}${side("right")}${side("top")}${side("bottom")}<diagonal/></border>`,
+  ]);
+
+  const xf = (fontId: number, fillId: number, borderId: number, align: string) =>
+    `<xf numFmtId="0" fontId="${fontId}" fillId="${fillId}" borderId="${borderId}" xfId="0" applyFont="1" applyFill="${fillId ? 1 : 0}" applyBorder="${borderId ? 1 : 0}" applyAlignment="1"><alignment ${align}/></xf>`;
+  const left = 'horizontal="left" vertical="center" indent="1"';
+  const x0 = append("cellXfs", [
+    xf(f0, fl0, 0, left), // title
+    xf(f0 + 1, fl0, b0, left), // head
+    xf(f0 + 2, 0, b0, left), // body
+    xf(f0 + 2, fl0 + 2, b0, left), // bodyAlt
+    xf(f0 + 3, fl0 + 1, b0, 'horizontal="center" vertical="center"'), // link
+    xf(f0 + 4, 0, 0, 'horizontal="left" vertical="center" wrapText="1" indent="1"'), // note
+    xf(f0 + 3, fl0 + 1, 0, 'horizontal="left" vertical="center" indent="1"'), // back link
+  ]);
+
+  return {
+    xml,
+    ids: { title: x0, head: x0 + 1, body: x0 + 2, bodyAlt: x0 + 3, link: x0 + 4, note: x0 + 5, back: x0 + 6 },
+  };
 }
 
-/** Label spanning cols 2:3, value spanning cols 4:COLS (shaded field box). */
-function fieldRow(
-  ws: ExcelJS.Worksheet,
-  row: number,
-  label: string,
-  value: string | number | null | undefined,
-  labelStartCol = 2,
-) {
-  ws.mergeCells(row, labelStartCol, row, labelStartCol + 1);
-  const labelCell = ws.getCell(row, labelStartCol);
-  labelCell.value = label;
-  labelCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: COLOR.textDark } };
-  labelCell.alignment = { vertical: "middle", horizontal: "left" };
+// ---------------------------------------------------------------------------
+// The "Employees" list sheet
+// ---------------------------------------------------------------------------
 
-  const valueStartCol = labelStartCol + 2;
-  ws.mergeCells(row, valueStartCol, row, COLS);
-  const valueCell = ws.getCell(row, valueStartCol);
-  valueCell.value = value === null || value === undefined || value === "" ? "—" : value;
-  valueCell.font = { name: "Calibri", size: 10, color: { argb: COLOR.textDark } };
-  valueCell.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
-  valueCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.fieldBg } };
-  for (let c = valueStartCol; c <= COLS; c++) ws.getCell(row, c).border = allBorders;
+const LIST_HEADERS = [
+  "Employee #",
+  "Name",
+  "Department",
+  "Position",
+  "Employment Type",
+  "Status",
+  "Date Hired",
+  "View PDS",
+];
+const LIST_WIDTHS = [14, 28, 22, 24, 18, 28, 16, 14];
+const LIST_FIRST_ROW = 4; // 1 title, 2 note, 3 header
 
-  ws.getRow(row).height = 18;
-}
+/** Column letter for a 1-based index (A..H is all this sheet needs). */
+const colLetter = (n: number) => String.fromCharCode(64 + n);
 
-function tableHeaderRow(ws: ExcelJS.Worksheet, row: number, headers: string[]) {
-  headers.forEach((h, i) => {
-    const cell = ws.getCell(row, i + 1);
-    cell.value = h;
-    cell.font = { name: "Calibri", size: 9.5, bold: true, color: { argb: COLOR.white } };
-    cell.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.bannerSub } };
-    cell.border = allBorders;
+const LIST_NOTE =
+  "Click “View PDS →” beside any name to open that employee’s actual Personal Data Sheet (CS Form No. 212, Revised 2026), " +
+  "filled in with their records. Use “← Back to Employee List” (to the right of each page) or this tab to return.";
+
+function buildListSheet(
+  employees: Employee[],
+  firstSheetOf: Map<string, string>,
+  ids: ListStyles,
+  generated: string,
+): string {
+  const lastCol = colLetter(LIST_HEADERS.length);
+  const lastRow = Math.max(employees.length + LIST_FIRST_ROW - 1, LIST_FIRST_ROW - 1);
+  const cols = LIST_WIDTHS.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("");
+  const links = employees.map((e, i) => {
+    const ref = `${lastCol}${LIST_FIRST_ROW + i}`;
+    return `<hyperlink ref="${ref}" location="${escapeXml(quoteSheet(firstSheetOf.get(e.id)!) + "!A1")}" display="View PDS →"/>`;
   });
-  ws.getRow(row).height = 18;
-}
 
-function tableDataRow(ws: ExcelJS.Worksheet, row: number, values: (string | number)[], shaded: boolean) {
-  values.forEach((v, i) => {
-    const cell = ws.getCell(row, i + 1);
-    cell.value = v === "" ? "—" : v;
-    cell.font = { name: "Calibri", size: 9.5, color: { argb: COLOR.textDark } };
-    cell.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
-    if (shaded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.fieldAltBg } };
-    cell.border = allBorders;
-  });
-}
+  const skeleton =
+    XML_HEAD +
+    `<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_REL}">` +
+    `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>` +
+    `<sheetViews><sheetView tabSelected="1" workbookViewId="0"><pane ySplit="${LIST_FIRST_ROW - 1}" topLeftCell="A${LIST_FIRST_ROW}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${LIST_FIRST_ROW}" sqref="A${LIST_FIRST_ROW}"/></sheetView></sheetViews>` +
+    `<sheetFormatPr defaultRowHeight="18" customHeight="1"/>` +
+    `<cols>${cols}</cols>` +
+    `<sheetData/>` +
+    (employees.length ? `<autoFilter ref="A${LIST_FIRST_ROW - 1}:${lastCol}${lastRow}"/>` : "") +
+    `<mergeCells count="2"><mergeCell ref="A1:${lastCol}1"/><mergeCell ref="A2:${lastCol}2"/></mergeCells>` +
+    (links.length ? `<hyperlinks>${links.join("")}</hyperlinks>` : "") +
+    `<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>` +
+    `<pageSetup orientation="landscape" fitToHeight="0"/>` +
+    `</worksheet>`;
 
-function emptyNote(ws: ExcelJS.Worksheet, row: number, text: string) {
-  ws.mergeCells(row, 1, row, COLS);
-  const cell = ws.getCell(row, 1);
-  cell.value = text;
-  cell.font = { name: "Calibri", size: 9.5, italic: true, color: { argb: COLOR.textMuted } };
-  cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-}
-
-function buildEmployeesSheet(wb: ExcelJS.Workbook, employees: Employee[], sheetNames: Map<string, string>) {
-  const ws = wb.addWorksheet(EMPLOYEES_SHEET, { views: [{ showGridLines: true, state: "frozen", ySplit: 1 }] });
-  setColumnWidths(ws, [14, 28, 22, 22, 18, 24, 16, 14]);
-
-  const headers = [
-    "Employee #",
-    "Name",
-    "Department",
-    "Position",
-    "Employment Type",
-    "Status",
-    "Date Hired",
-    "View Details",
-  ];
-  headers.forEach((h, i) => {
-    const cell = ws.getCell(1, i + 1);
-    cell.value = h;
-    cell.font = { name: "Calibri", size: 10.5, bold: true, color: { argb: COLOR.white } };
-    cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.banner } };
-    cell.border = allBorders;
-  });
-  ws.getRow(1).height = 20;
+  const ed = new SheetEditor(skeleton);
+  ed.set("A1", `Employee 201 File Workbook — Generated ${generated}`, ids.title);
+  for (let c = 2; c <= LIST_HEADERS.length; c++) ed.set(`${colLetter(c)}1`, "", ids.title);
+  ed.setRowHeight(1, 24);
+  ed.set("A2", LIST_NOTE, ids.note);
+  for (let c = 2; c <= LIST_HEADERS.length; c++) ed.set(`${colLetter(c)}2`, "", ids.note);
+  ed.setRowHeight(2, 32);
+  LIST_HEADERS.forEach((h, i) => ed.set(`${colLetter(i + 1)}3`, h, ids.head));
+  ed.setRowHeight(3, 20);
 
   employees.forEach((e, idx) => {
-    const row = idx + 2;
-    const shaded = idx % 2 === 1;
-    const values: (string | number)[] = [
+    const row = LIST_FIRST_ROW + idx;
+    const style = idx % 2 === 1 ? ids.bodyAlt : ids.body;
+    const values = [
       e.employeeNumber,
       e.displayName,
       e.department || "",
@@ -194,260 +241,293 @@ function buildEmployeesSheet(wb: ExcelJS.Workbook, employees: Employee[], sheetN
       statusLabel(e),
       e.dateHired || "",
     ];
-    values.forEach((v, c) => {
-      const cell = ws.getCell(row, c + 1);
-      cell.value = v === "" ? "—" : v;
-      cell.font = { name: "Calibri", size: 10, color: { argb: COLOR.textDark } };
-      cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-      if (shaded) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.fieldAltBg } };
-      cell.border = allBorders;
-    });
-    const linkCell = ws.getCell(row, 8);
-    linkCell.value = { text: "View →", hyperlink: internalLink(sheetNames.get(e.id)!) };
-    linkCell.font = { name: "Calibri", size: 10, bold: true, color: { argb: COLOR.banner } };
-    linkCell.alignment = { vertical: "middle", horizontal: "center" };
-    linkCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLOR.fieldBg } };
-    linkCell.border = allBorders;
-    ws.getRow(row).height = 18;
+    values.forEach((v, c) => ed.set(`${colLetter(c + 1)}${row}`, v === "" ? "—" : v, style));
+    ed.set(`${lastCol}${row}`, "View PDS →", ids.link);
   });
-
-  // AutoFilter on the header row — lets Excel/Sheets users search & filter
-  // by any column (Employee #, Name, Department, Status, etc.) using the
-  // dropdown arrows, without needing a separate search box.
-  ws.autoFilter = {
-    from: { row: 1, column: 1 },
-    to: { row: Math.max(employees.length + 1, 1), column: headers.length },
-  };
+  return ed.toString();
 }
 
-async function buildEmployeeSheet(wb: ExcelJS.Workbook, employee: Employee, sheetName: string) {
-  const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: true }] });
-  setColumnWidths(ws, [16, 16, 16, 16, 18, 18]);
-  const p = employee.pds;
-  let row = 1;
+// ---------------------------------------------------------------------------
+// Cloning the template's pages
+// ---------------------------------------------------------------------------
 
-  // Back-to-list link
-  const backCell = ws.getCell(row, 1);
-  ws.mergeCells(row, 1, row, 3);
-  backCell.value = { text: "← Back to Employee List", hyperlink: internalLink(EMPLOYEES_SHEET) };
-  backCell.font = { name: "Calibri", size: 9.5, bold: true, color: { argb: COLOR.banner } };
-  backCell.alignment = { vertical: "middle", horizontal: "left" };
-  ws.getRow(row).height = 16;
-  row += 1;
+interface Rel {
+  id: string;
+  type: string;
+  target: string;
+}
 
-  // Banner: name + title
-  bannerRow(ws, row, employee.displayName, { size: 16, bold: true, fill: COLOR.banner, height: 26 });
-  row += 1;
-  bannerRow(
-    ws,
-    row,
-    `${employee.position || "No position on file"}  ·  ${employee.department || "No department on file"}`,
-    { size: 10.5, bold: false, fill: COLOR.bannerSub, height: 18 },
-  );
-  row += 1;
-
-  // Photo block (rows row..row+5, column A only) with fields to the right
-  const photoTopRow = row;
-  const photoRowSpan = 6;
-  ws.mergeCells(photoTopRow, 1, photoTopRow + photoRowSpan - 1, 1);
-  const photoCell = ws.getCell(photoTopRow, 1);
-  photoCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-  photoCell.font = { name: "Calibri", size: 8.5, italic: true, color: { argb: COLOR.textMuted } };
-  photoCell.border = allBorders;
-
-  let photoEmbedded = false;
-  if (employee.photoUrl) {
-    const photo = await loadPhotoAsBase64(employee.photoUrl);
-    if (photo) {
-      const imageId = wb.addImage({ base64: photo.base64, extension: photo.extension });
-      ws.addImage(imageId, {
-        tl: { col: 0.08, row: photoTopRow - 1 + 0.1 },
-        ext: { width: 100, height: 100 },
-        editAs: "oneCell",
-      });
-      photoEmbedded = true;
-    }
-  }
-  if (!photoEmbedded) photoCell.value = "No photo\non file";
-
-  fieldRow(ws, photoTopRow, "Employee ID:", employee.employeeNumber);
-  fieldRow(ws, photoTopRow + 1, "Contact #:", employee.contact || p.mobileNo);
-  fieldRow(ws, photoTopRow + 2, "Email Address:", employee.email);
-  fieldRow(ws, photoTopRow + 3, "Address:", employee.address);
-  fieldRow(ws, photoTopRow + 4, "Civil Status:", employee.civilStatus);
-  fieldRow(ws, photoTopRow + 5, "Date of Birth:", employee.dob);
-  row = photoTopRow + photoRowSpan;
-  row += 1; // spacer
-
-  sectionBar(ws, row, "Personal Information");
-  row += 1;
-  const personalFields: [string, string | number | null | undefined][] = [
-    ["Sex at Birth", p.sexAtBirth],
-    ["Nationality", employee.nationality],
-    ["Place of Birth", p.placeOfBirth],
-    ["Height (m)", p.heightM],
-    ["Weight (kg)", p.weightKg],
-    ["Blood Type", p.bloodType],
-    ["Telephone No.", p.telephoneNo],
-  ];
-  personalFields.forEach(([label, value]) => {
-    fieldRow(ws, row, `${label}:`, value);
-    row += 1;
-  });
-  row += 1;
-
-  sectionBar(ws, row, "Employment Details");
-  row += 1;
-  const employmentFields: [string, string | number | null | undefined][] = [
-    ["Employment Type", employee.employmentType],
-    ["Employment Status", employee.employmentStatus],
-    ["Date Hired", employee.dateHired],
-    ["Contract Start", employee.contractStart],
-    ["Contract End", employee.contractEnd],
-    ["Immediate Supervisor", employee.supervisor],
-    ["Record Status", statusLabel(employee)],
-  ];
-  employmentFields.forEach(([label, value]) => {
-    fieldRow(ws, row, `${label}:`, value);
-    row += 1;
-  });
-  row += 1;
-
-  sectionBar(ws, row, "Government Membership IDs");
-  row += 1;
-  const govFields: [string, string | number | null | undefined][] = [
-    ["UMID ID No.", p.gsisUmidNo],
-    ["Pag-IBIG ID No.", p.pagibigNo],
-    ["PhilHealth No.", p.philhealthNo],
-    ["PhilSys Card Number (PCN)", p.philsysNumber],
-    ["TIN No.", p.tinNo],
-    ["Agency Employee No.", p.agencyEmployeeNo],
-  ];
-  govFields.forEach(([label, value]) => {
-    fieldRow(ws, row, `${label}:`, value);
-    row += 1;
-  });
-  row += 1;
-
-  const table = (title: string, headers: string[], records: (string | number)[][], emptyMessage: string) => {
-    sectionBar(ws, row, title);
-    row += 1;
-    if (records.length === 0) {
-      emptyNote(ws, row, emptyMessage);
-      row += 1;
-      return;
-    }
-    tableHeaderRow(ws, row, headers);
-    row += 1;
-    records.forEach((r, i) => {
-      tableDataRow(ws, row, r, i % 2 === 1);
-      row += 1;
-    });
-  };
-
-  table(
-    "Education",
-    [
-      "Level",
-      "School / Institution",
-      "Degree / Course",
-      "From",
-      "To",
-      "Highest Level / Units",
-      "Year Graduated",
-      "Honors",
-    ],
-    employee.education.map((e) => [
-      e.level || "",
-      e.schoolName,
-      e.degree || "",
-      e.periodFrom || "",
-      e.periodTo || "",
-      e.highestLevelUnits || "",
-      e.yearGraduated || "",
-      e.honors || "",
-    ]),
-    "No education records on file.",
-  );
-  row += 1;
-
-  table(
-    "Work Experience",
-    ["Company / Employer", "Position", "From", "To", "Monthly Salary", "Pay Grade & Step", "Status of Appointment"],
-    employee.workExperience.map((w) => [
-      w.company,
-      w.position || "",
-      w.fromDate || "",
-      w.toDate || "Present",
-      w.monthlySalary || "",
-      w.salaryGrade || "",
-      w.statusOfAppointment || "",
-    ]),
-    "No work experience records on file.",
-  );
-  row += 1;
-
-  table(
-    "Training & Development",
-    ["Course / Training Title", "Provider", "From", "To / Completed", "Hours", "Certificate"],
-    employee.training.map((t) => [
-      t.course,
-      t.provider || "",
-      t.fromDate || "",
-      t.completed || "",
-      t.hours || "",
-      certStatusText(t),
-    ]),
-    "No training records on file.",
-  );
-  row += 1;
-
-  table(
-    "Performance Reviews",
-    ["Review Period", "Rating", "Reviewed By", "Remarks"],
-    employee.performance.map((r) => [r.period, r.rating || "", r.reviewer || "", r.remarks || ""]),
-    "No performance reviews on file.",
-  );
-  row += 1;
-
-  table(
-    "Documents on File",
-    ["Document", "Status", "Uploaded", "Expires"],
-    employee.documents.map((d) => [
-      d.name,
-      d.status === "uploaded" ? "Uploaded" : "Missing",
-      d.uploaded || "",
-      expiryText(d),
-    ]),
-    "No documents on file.",
-  );
+function parseRels(xml: string | undefined): Rel[] {
+  if (!xml) return [];
+  return [...xml.matchAll(/<Relationship\b[^>]*\/>/g)].map((m) => ({
+    id: /Id="([^"]*)"/.exec(m[0])![1],
+    type: /Type="([^"]*)"/.exec(m[0])![1],
+    target: /Target="([^"]*)"/.exec(m[0])![1],
+  }));
 }
 
 /**
- * Builds and downloads a styled "Employee 201 File" workbook (.xlsx): an
- * "Employees" sheet listing everyone with a "View Details" link per row,
- * and one profile-card-style detail sheet per employee (photo, banner
- * header, labeled fields, and record tables) with a link back to the list.
+ * Makes a copy of a template page safe to live next to other copies: drops the parts that
+ * are tied to the template's own package (printer settings, custom views, the country-site
+ * hyperlinks, duplicated ids), opens it in normal view, and adds the "back to list" link.
+ */
+function finalizePage(xml: string, backRef: string): string {
+  let out = xml
+    .replace(/<customSheetViews>[\s\S]*?<\/customSheetViews>/, "")
+    .replace(/<hyperlinks>[\s\S]*?<\/hyperlinks>/, "")
+    .replace(/(<pageSetup\b[^>]*?)\s+r:id="[^"]*"/g, "$1")
+    .replace(/<worksheet\b[^>]*>/, (tag) => tag.replace(/\s+xr:uid="[^"]*"/, ""))
+    .replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/, "$1")
+    .replace(/<sheetView\b[^>]*>/, (tag) => {
+      const normal = Math.max(Number(/zoomScaleNormal="(\d+)"/.exec(tag)?.[1] ?? 100), 70);
+      const grid = /showGridLines="0"/.test(tag) ? ' showGridLines="0"' : "";
+      return `<sheetView${grid} zoomScale="${normal}" zoomScaleNormal="${normal}" workbookViewId="0">`;
+    })
+    .replace(/<selection\b[^>]*\/>/, '<selection activeCell="A1" sqref="A1"/>');
+
+  const link = `<hyperlinks><hyperlink ref="${backRef}" location="${escapeXml(quoteSheet(EMPLOYEES_SHEET) + "!A1")}" display="← Back to Employee List"/></hyperlinks>`;
+  out = /<printOptions\b/.test(out)
+    ? out.replace(/<printOptions\b/, `${link}<printOptions`)
+    : out.replace(/<pageMargins\b/, `${link}<pageMargins`);
+  return out;
+}
+
+export interface WorkbookEmployee {
+  employee: Employee;
+  photo?: PdsPhoto | null;
+}
+
+/**
+ * Builds the workbook bytes from the CS Form 212 template and the employees (pure — no network),
+ * so it can be tested outside the browser.
+ */
+export async function buildEmployeeWorkbookXlsx(
+  template: ArrayBuffer | Uint8Array,
+  items: WorkbookEmployee[],
+  generatedLabel = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+): Promise<Uint8Array> {
+  const tpl = await JSZip.loadAsync(template);
+  const read = async (path: string) => tpl.file(path)?.async("string");
+
+  // Raw template pages (read once, filled once per employee).
+  const sheetXml = {} as Record<SheetKey, string>;
+  const sheetRels = {} as Record<SheetKey, Rel[]>;
+  for (const key of PAGE_ORDER) {
+    sheetXml[key] = (await read(`xl/worksheets/sheet${SHEET_PART[key]}.xml`))!;
+    sheetRels[key] = parseRels(await read(`xl/worksheets/_rels/sheet${SHEET_PART[key]}.xml.rels`));
+  }
+
+  const out = new JSZip();
+  const sheetsMeta: { name: string; part: number; printArea?: string }[] = [];
+  const overrides: string[] = [];
+  const addOverride = (partName: string, contentType: string) =>
+    overrides.push(`<Override PartName="${partName}" ContentType="${contentType}"/>`);
+
+  // Sheet names: "Employees" first, then "<employee #> C1", "<employee #> C2", …
+  const used = new Set<string>([EMPLOYEES_SHEET.toLowerCase()]);
+  const prefixOf = new Map<string, string>();
+  items.forEach(({ employee: e }) => {
+    const base = cleanSheetName(e.employeeNumber || e.displayName).slice(0, 22);
+    let prefix = base;
+    let n = 2;
+    while (used.has(`${prefix} c1`.toLowerCase())) prefix = `${base.slice(0, 22 - String(n).length - 1)}-${n++}`;
+    used.add(`${prefix} c1`.toLowerCase());
+    prefixOf.set(e.id, prefix);
+  });
+  const firstSheetOf = new Map<string, string>();
+  items.forEach(({ employee: e }) => firstSheetOf.set(e.id, `${prefixOf.get(e.id)} C1`));
+
+  // Styles (template's + our list formats).
+  const styles = appendStyles((await read("xl/styles.xml"))!);
+  put(out, "xl/styles.xml", styles.xml);
+  put(out, "xl/theme/theme1.xml", (await read("xl/theme/theme1.xml"))!);
+  put(out, "xl/sharedStrings.xml", (await read("xl/sharedStrings.xml"))!);
+
+  // Sheet 1: the list.
+  const listXml = buildListSheet(
+    items.map((i) => i.employee),
+    firstSheetOf,
+    styles.ids,
+    generatedLabel,
+  );
+  put(out, "xl/worksheets/sheet1.xml", listXml);
+  addOverride("/xl/worksheets/sheet1.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml");
+  sheetsMeta.push({ name: EMPLOYEES_SHEET, part: 1 });
+
+  // Each employee's pages.
+  let nextSheet = 2;
+  let nextDrawing = 1;
+  let nextVml = 1;
+  let nextCtrl = 1;
+  const post: {
+    relsC1: string;
+    relsC4: string;
+    drawingC4: string;
+    filled: ReturnType<typeof fillPdsForm>;
+    photo?: PdsPhoto | null;
+    idx: number;
+  }[] = [];
+
+  for (let idx = 0; idx < items.length; idx++) {
+    const { employee, photo } = items[idx];
+    const filled = fillPdsForm(sheetXml, employee);
+    const prefix = prefixOf.get(employee.id)!;
+    let relsC1 = "";
+    let relsC4 = "";
+    let drawingC4 = "";
+
+    for (const key of PAGE_ORDER) {
+      if (!ALWAYS.includes(key) && !filled.editors[key].hasEdits()) continue;
+      const part = nextSheet++;
+      const backRef = BACK_LINK_REF[key];
+      filled.editors[key].set(backRef, "← Back to Employee List", styles.ids.back);
+      put(out, `xl/worksheets/sheet${part}.xml`, finalizePage(filled.editors[key].toString(), backRef));
+      addOverride(
+        `/xl/worksheets/sheet${part}.xml`,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
+      );
+      sheetsMeta.push({ name: `${prefix} ${key}`, part, printArea: PRINT_AREA[key] });
+
+      // Form controls / drawings of this page: cloned under new names, same relationship ids.
+      const rels: string[] = [];
+      for (const rel of sheetRels[key]) {
+        const file = rel.target.replace(/^\.\.\//, "");
+        if (rel.type === `${REL_TYPE}/drawing`) {
+          const name = `drawing${nextDrawing++}.xml`;
+          put(out, `xl/drawings/${name}`, (await read(`xl/${file}`))!);
+          addOverride(`/xl/drawings/${name}`, "application/vnd.openxmlformats-officedocument.drawing+xml");
+          rels.push(`<Relationship Id="${rel.id}" Type="${rel.type}" Target="../drawings/${name}"/>`);
+          if (key === "C4") drawingC4 = `xl/drawings/${name}`;
+        } else if (rel.type === `${REL_TYPE}/vmlDrawing`) {
+          const name = `vmlDrawing${nextVml++}.vml`;
+          put(out, `xl/drawings/${name}`, (await read(`xl/${file}`))!);
+          rels.push(`<Relationship Id="${rel.id}" Type="${rel.type}" Target="../drawings/${name}"/>`);
+        } else if (rel.type === `${REL_TYPE}/ctrlProp`) {
+          const name = `ctrlProp${nextCtrl++}.xml`;
+          put(out, `xl/ctrlProps/${name}`, (await read(`xl/${file}`))!);
+          addOverride(`/xl/ctrlProps/${name}`, "application/vnd.ms-excel.controlproperties+xml");
+          rels.push(`<Relationship Id="${rel.id}" Type="${rel.type}" Target="../ctrlProps/${name}"/>`);
+        }
+        // hyperlinks and printer settings belong to the template package and are dropped.
+      }
+      if (rels.length) {
+        const relsPath = `xl/worksheets/_rels/sheet${part}.xml.rels`;
+        put(
+          out,
+          relsPath,
+          `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`,
+        );
+        if (key === "C1") relsC1 = relsPath;
+        if (key === "C4") relsC4 = relsPath;
+      }
+    }
+    post.push({ relsC1, relsC4, drawingC4, filled, photo, idx });
+  }
+
+  // Workbook, relationships, content types, document properties.
+  const sheetEls = sheetsMeta
+    .map((s, i) => `<sheet name="${escapeXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+    .join("");
+  const names: string[] = [];
+  if (items.length) {
+    names.push(
+      `<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">${escapeXml(`${quoteSheet(EMPLOYEES_SHEET)}!$A$3:$${colLetter(LIST_HEADERS.length)}$${items.length + LIST_FIRST_ROW - 1}`)}</definedName>`,
+    );
+  }
+  sheetsMeta.forEach((s, i) => {
+    if (s.printArea) {
+      names.push(
+        `<definedName name="_xlnm.Print_Area" localSheetId="${i}">${escapeXml(`${quoteSheet(s.name)}!${s.printArea}`)}</definedName>`,
+      );
+    }
+  });
+  put(
+    out,
+    "xl/workbook.xml",
+    `${XML_HEAD}<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_REL}"><workbookPr/>` +
+      `<bookViews><workbookView xWindow="0" yWindow="0" windowWidth="23256" windowHeight="12456" tabRatio="850" activeTab="0"/></bookViews>` +
+      `<sheets>${sheetEls}</sheets>` +
+      (names.length ? `<definedNames>${names.join("")}</definedNames>` : "") +
+      `<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`,
+  );
+  const n = sheetsMeta.length;
+  put(
+    out,
+    "xl/_rels/workbook.xml.rels",
+    `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      sheetsMeta
+        .map(
+          (s, i) =>
+            `<Relationship Id="rId${i + 1}" Type="${REL_TYPE}/worksheet" Target="worksheets/sheet${s.part}.xml"/>`,
+        )
+        .join("") +
+      `<Relationship Id="rId${n + 1}" Type="${REL_TYPE}/styles" Target="styles.xml"/>` +
+      `<Relationship Id="rId${n + 2}" Type="${REL_TYPE}/theme" Target="theme/theme1.xml"/>` +
+      `<Relationship Id="rId${n + 3}" Type="${REL_TYPE}/sharedStrings" Target="sharedStrings.xml"/>` +
+      `</Relationships>`,
+  );
+  put(
+    out,
+    "_rels/.rels",
+    `${XML_HEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+      `<Relationship Id="rId1" Type="${REL_TYPE}/officeDocument" Target="xl/workbook.xml"/>` +
+      `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>` +
+      `</Relationships>`,
+  );
+  put(
+    out,
+    "docProps/core.xml",
+    `${XML_HEAD}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>201 File System</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created></cp:coreProperties>`,
+  );
+  put(
+    out,
+    "[Content_Types].xml",
+    `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+      `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+      `<Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>` +
+      `<Default Extension="xml" ContentType="application/xml"/>` +
+      `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+      `<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>` +
+      `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+      `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>` +
+      `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>` +
+      overrides.join("") +
+      `</Types>`,
+  );
+
+  // Checkbox / dropdown state and the employee photo (these edit parts written above).
+  for (const p of post) {
+    if (p.relsC1) {
+      await syncControls(
+        out,
+        p.relsC1,
+        p.filled.c1Checks,
+        p.filled.countryIndex ? { link: "J16", index: p.filled.countryIndex } : undefined,
+      );
+    }
+    if (p.relsC4) await syncControls(out, p.relsC4, p.filled.c4Checks);
+    if (p.photo && p.drawingC4) await addPhoto(out, p.photo, { drawingPath: p.drawingC4, key: String(p.idx) });
+  }
+
+  return out.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+}
+
+/**
+ * Builds and downloads the Employee 201 File Workbook (.xlsx): an "Employees" sheet listing
+ * everyone with a "View PDS →" link per row, and each employee's actual Personal Data Sheet
+ * (CS Form No. 212, Revised 2026) filled in with their records.
  */
 export async function exportEmployeeWorkbook(
   employees: Employee[],
   filename = "employee-201-file-workbook.xlsx",
 ): Promise<void> {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = "201 File System";
-  wb.created = new Date();
-
-  const used = new Set<string>([EMPLOYEES_SHEET.toLowerCase()]);
-  const sheetNames = new Map<string, string>();
-  employees.forEach((e) => {
-    sheetNames.set(e.id, uniqueSheetName(`${e.employeeNumber} ${e.displayName}`, used));
-  });
-
-  buildEmployeesSheet(wb, employees, sheetNames);
-  for (const e of employees) {
-    await buildEmployeeSheet(wb, e, sheetNames.get(e.id)!);
-  }
-
-  const buffer = await wb.xlsx.writeBuffer();
-  downloadWorkbookBuffer(buffer as unknown as ArrayBuffer | Uint8Array, filename);
+  const res = await fetch(PDS_TEMPLATE_URL);
+  if (!res.ok) throw new Error("Could not load the CS Form 212 template.");
+  const template = await res.arrayBuffer();
+  const photos = await Promise.all(employees.map((e) => loadPhoto(e.photoUrl)));
+  const bytes = await buildEmployeeWorkbookXlsx(
+    template,
+    employees.map((employee, i) => ({ employee, photo: photos[i] })),
+  );
+  downloadWorkbookBuffer(bytes, filename);
 }

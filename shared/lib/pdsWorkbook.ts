@@ -21,7 +21,7 @@ import { downloadWorkbookBuffer } from "@/shared/lib/xlsxTheme";
 export const PDS_TEMPLATE_URL = "/templates/CS_Form_212_Revised_2026_PDS.xlsx";
 
 /** Worksheet part for each template sheet (the template is bundled, so this is fixed). */
-const SHEET_PART = {
+export const SHEET_PART = {
   C1: 1,
   C2: 2,
   C3: 3,
@@ -34,13 +34,13 @@ const SHEET_PART = {
   C10: 10, // Voluntary work continuation
   C11: 11, // Other information continuation
 } as const;
-type SheetKey = keyof typeof SHEET_PART;
+export type SheetKey = keyof typeof SHEET_PART;
 
 /** Don't add directory entries (e.g. "xl/media/") to the zip — Excel doesn't need them. */
 const NO_FOLDERS = { createFolders: false } as const;
 
 /** zip.file() without JSZip adding directory entries. */
-function put(zip: JSZip, path: string, data: string | Uint8Array): void {
+export function put(zip: JSZip, path: string, data: string | Uint8Array): void {
   zip.file(path, data, NO_FOLDERS);
 }
 
@@ -115,13 +115,12 @@ function fillRows<T>(
 // Form controls (checkboxes / dropdown) — kept in sync with their linked cells
 // ---------------------------------------------------------------------------
 
-async function syncControls(
+export async function syncControls(
   zip: JSZip,
-  sheetPart: number,
+  relsPath: string,
   checks: Map<string, boolean>,
   dropdown?: { link: string; index: number },
 ): Promise<void> {
-  const relsPath = `xl/worksheets/_rels/sheet${sheetPart}.xml.rels`;
   const rels = await zip.file(relsPath)?.async("string");
   if (!rels) return;
 
@@ -165,15 +164,26 @@ async function syncControls(
 // Photo (item 42 box on page 4)
 // ---------------------------------------------------------------------------
 
-async function addPhoto(zip: JSZip, photo: PdsPhoto): Promise<void> {
-  const drawingPath = "xl/drawings/drawing2.xml"; // page 4's drawing (holds the PHOTO text box)
+export interface PhotoTarget {
+  /** Page 4's drawing part (holds the PHOTO text box). */
+  drawingPath: string;
+  /** Unique suffix so several employees' photos can live in one workbook. */
+  key?: string;
+}
+
+export async function addPhoto(
+  zip: JSZip,
+  photo: PdsPhoto,
+  target: PhotoTarget = { drawingPath: "xl/drawings/drawing2.xml" },
+): Promise<void> {
+  const drawingPath = target.drawingPath;
   const drawing = await zip.file(drawingPath)?.async("string");
   if (!drawing) return;
 
-  const mediaName = `pdsphoto.${photo.extension === "jpeg" ? "jpeg" : "png"}`;
+  const mediaName = `pdsphoto${target.key ?? ""}.${photo.extension === "jpeg" ? "jpeg" : "png"}`;
   put(zip, `xl/media/${mediaName}`, photo.bytes);
 
-  const relsPath = "xl/drawings/_rels/drawing2.xml.rels";
+  const relsPath = drawingPath.replace("xl/drawings/", "xl/drawings/_rels/") + ".rels";
   const imageRel = `<Relationship Id="rIdPdsPhoto" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mediaName}"/>`;
   const existingRels = await zip.file(relsPath)?.async("string");
   put(
@@ -223,16 +233,17 @@ function fillAddress(ed: SheetEditor, a: PdsAddress, rows: { top: number; mid: n
   setIf(`I${rows.zip}`, a.zipCode);
 }
 
-export async function buildPdsXlsx(
-  template: ArrayBuffer | Uint8Array,
-  employee: Employee,
-  photo?: PdsPhoto | null,
-): Promise<Uint8Array> {
-  const zip = await JSZip.loadAsync(template);
+export interface FilledPdsForm {
+  editors: Record<SheetKey, SheetEditor>;
+  c1Checks: Map<string, boolean>;
+  c4Checks: Map<string, boolean>;
+  countryIndex: number | null;
+}
+
+/** Fills the form's worksheets (given as the template's raw sheet XML) with one employee's data. */
+export function fillPdsForm(sheetXml: Record<SheetKey, string>, employee: Employee): FilledPdsForm {
   const editors = {} as Record<SheetKey, SheetEditor>;
-  for (const key of Object.keys(SHEET_PART) as SheetKey[]) {
-    editors[key] = new SheetEditor(await zip.file(`xl/worksheets/sheet${SHEET_PART[key]}.xml`)!.async("string"));
-  }
+  for (const key of Object.keys(SHEET_PART) as SheetKey[]) editors[key] = new SheetEditor(sheetXml[key]);
   const { C1, C2, C3, C4, C5, C6, C7, C8, C9, C10, C11 } = editors;
 
   const p = employee.pds;
@@ -458,15 +469,35 @@ export async function buildPdsXlsx(
   C4.set("D62", s(p.govIdNumber));
   C4.set("D64", [toDMY(p.govIdDateIssued), s(p.govIdPlaceIssued)].filter(Boolean).join(", "));
 
-  // ---- Write the changed parts back ---------------------------------------------------------
   // Each checkbox is linked to a cell that holds TRUE/FALSE.
   for (const [ref, v] of c1Checks) C1.set(ref, v);
   for (const [ref, v] of c4Checks) C4.set(ref, v);
+  return { editors, c1Checks, c4Checks, countryIndex: countryIndex || null };
+}
+
+export async function buildPdsXlsx(
+  template: ArrayBuffer | Uint8Array,
+  employee: Employee,
+  photo?: PdsPhoto | null,
+): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(template);
+  const sheetXml = {} as Record<SheetKey, string>;
+  for (const key of Object.keys(SHEET_PART) as SheetKey[]) {
+    sheetXml[key] = await zip.file(`xl/worksheets/sheet${SHEET_PART[key]}.xml`)!.async("string");
+  }
+  const { editors, c1Checks, c4Checks, countryIndex } = fillPdsForm(sheetXml, employee);
+
+  // ---- Write the changed parts back ---------------------------------------------------------
   for (const key of Object.keys(SHEET_PART) as SheetKey[]) {
     put(zip, `xl/worksheets/sheet${SHEET_PART[key]}.xml`, editors[key].toString());
   }
-  await syncControls(zip, SHEET_PART.C1, c1Checks, countryIndex ? { link: "J16", index: countryIndex } : undefined);
-  await syncControls(zip, SHEET_PART.C4, c4Checks);
+  await syncControls(
+    zip,
+    `xl/worksheets/_rels/sheet${SHEET_PART.C1}.xml.rels`,
+    c1Checks,
+    countryIndex ? { link: "J16", index: countryIndex } : undefined,
+  );
+  await syncControls(zip, `xl/worksheets/_rels/sheet${SHEET_PART.C4}.xml.rels`, c4Checks);
   if (photo) await addPhoto(zip, photo);
 
   return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
@@ -476,7 +507,7 @@ export async function buildPdsXlsx(
 // Browser entry point
 // ---------------------------------------------------------------------------
 
-async function loadPhoto(url: string | null): Promise<PdsPhoto | null> {
+export async function loadPhoto(url: string | null): Promise<PdsPhoto | null> {
   if (!url) return null;
   try {
     const res = await fetch(url);

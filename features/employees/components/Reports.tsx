@@ -170,8 +170,9 @@ export default function Reports() {
           </div>
           <h3 className="mb-1">Employee 201 File Workbook</h3>
           <p className="text-ink-muted text-[0.9rem] flex-1">
-            One Excel workbook with all employees listed — click "View →" next to any name to jump to that employee's
-            full details on their own sheet, with a link back to the list.
+            One Excel workbook with all employees listed — click "View PDS →" next to any name to open that employee's
+            actual Personal Data Sheet (CS Form No. 212, Revised 2026), filled in with their records, with a link back
+            to the list.
           </p>
           <Button onClick={generateEmployeeWorkbook} disabled={filtered.length === 0} className="mt-3">
             <Download size={18} />
