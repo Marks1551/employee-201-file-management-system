@@ -637,23 +637,24 @@ export default function HREmployeeFile() {
                 fields={[
                   { key: "course", label: "Course / training title", required: true },
                   { key: "provider", label: "Provider" },
-                  { key: "fromDate", label: "From", type: "date" },
-                  { key: "completed", label: "To / Date completed", type: "date" },
+                  { key: "fromDate", label: "Start", type: "date" },
+                  { key: "completed", label: "End", type: "date" },
                   {
                     key: "hours",
                     label: "Number of hours",
-                    hint: "Filled in automatically from the From and To dates (8 hours a day). You can change it.",
+                    hint: "Filled in automatically from the Start and End dates (8 hours a day). You can change it.",
                     autoFill: (f) => trainingHours(f.fromDate, f.completed),
                   },
-                  { key: "ldType", label: "Type of L&D", hint: "Managerial, Supervisory, Technical, etc." },
-                  { key: "conductedBy", label: "Conducted / Sponsored by" },
                   {
-                    key: "certStatus",
-                    label: "Certificate status",
+                    key: "ldType",
+                    label: "Type of L&D",
                     type: "select",
                     options: [
-                      { value: "on-file", label: "On file" },
-                      { value: "expiring", label: "Expiring soon" },
+                      { value: "", label: "Select type…" },
+                      { value: "Managerial", label: "Managerial" },
+                      { value: "Supervisory", label: "Supervisory" },
+                      { value: "Technical", label: "Technical" },
+                      { value: "Others", label: "Others" },
                     ],
                   },
                   {
