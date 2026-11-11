@@ -156,7 +156,8 @@ export default function Reports() {
           </div>
           <h3 className="mb-1">Employee List Report</h3>
           <p className="text-ink-muted text-[0.9rem] flex-1">
-            Every employee's number, department, position, and hire date (for the departments selected above).
+            A list of employees (number, name, department, position, hire date) with their own sheet showing full
+            details and document statuses (for the departments selected above).
           </p>
           <Button onClick={generateEmployeeList} disabled={filtered.length === 0} className="mt-3">
             <Download size={18} />
